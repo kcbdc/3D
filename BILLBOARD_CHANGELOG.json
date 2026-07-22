@@ -1,0 +1,10 @@
+{
+  "character_renderer": "Three.js SpriteMaterial billboard",
+  "characters": [
+    "hunmin.png",
+    "daim.png",
+    "sunsik.png"
+  ],
+  "character_glb_removed": true,
+  "environment_glb_retained": true
+}
