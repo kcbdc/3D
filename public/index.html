@@ -28,5 +28,16 @@
  <div id="toast" class="toast"></div>
 </div>
 <div id="modal" class="modal"><div class="card"><button id="closeModal" class="btn close">닫기</button><div id="modalBody"></div></div></div>
+<script>
+window.addEventListener('error', function(e){
+  const el=document.getElementById('loadText');
+  if(el) el.textContent='실행 오류: '+(e.message||'알 수 없는 오류')+' · 브라우저 개발자도구(F12) 콘솔을 확인하세요.';
+});
+window.addEventListener('unhandledrejection', function(e){
+  const el=document.getElementById('loadText');
+  const msg=e.reason && (e.reason.message||String(e.reason));
+  if(el) el.textContent='로딩 오류: '+(msg||'리소스 로드 실패')+' · F12 콘솔/네트워크 탭을 확인하세요.';
+});
+</script>
 <script type="module" src="./game.js"></script>
 </body></html>

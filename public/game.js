@@ -1,6 +1,6 @@
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-import {GLTFLoader} from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
-import {DRACOLoader} from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/DRACOLoader.js';
+import * as THREE from 'https://esm.sh/three@0.160.0';
+import {GLTFLoader} from 'https://esm.sh/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
+import {DRACOLoader} from 'https://esm.sh/three@0.160.0/examples/jsm/loaders/DRACOLoader.js';
 
 const $=id=>document.getElementById(id);
 const MOBILE=matchMedia('(max-width:760px)').matches;
@@ -95,5 +95,5 @@ function show(html){$('modalBody').innerHTML=html;$('modal').classList.add('show
 function updateUI(){$('coin').textContent=state.coin;$('level').textContent=1+Math.floor(state.xp/100);$('farmCount').textContent=state.plots.filter(Boolean).length;$('questRows').innerHTML=zones.map(z=>`<div class="questRow ${state.done[z.id]?'done':''}"><span>${z.name}</span><b>${state.done[z.id]?'완료':'+'+z.reward+'G'}</b></div>`).join('');}
 function drawMap(){const c=$('mapCanvas'),g=c.getContext('2d'),sx=c.width/160,sy=c.height/170;g.clearRect(0,0,c.width,c.height);g.fillStyle='#79a95f';g.fillRect(0,0,c.width,c.height);g.strokeStyle='#3d9fd6';g.lineWidth=14;g.beginPath();g.moveTo(0,88);g.bezierCurveTo(80,70,165,105,260,95);g.stroke();g.strokeStyle='#43494f';g.lineWidth=9;[[80,20,80,240],[20,70,240,70],[20,165,240,165],[35,20,35,190],[225,20,225,190]].forEach(a=>{g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(a[2],a[3]);g.stroke()});for(const p of pois){g.fillStyle=p.type?'#f0c96a':'#fff';g.beginPath();g.arc((p.entrance.x+80)*sx,(p.entrance.y+75)*sy,4,0,Math.PI*2);g.fill()}g.fillStyle='#ff5f62';g.beginPath();g.arc((player.position.x+80)*sx,(player.position.z+75)*sy,5,0,Math.PI*2);g.fill();}
 function resize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);}
-async function syncCloud(){try{await fetch('/api/save',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slot:'default',state})});}catch{}}
+async function syncCloud(){if(location.hostname.endsWith('github.io'))return;try{await fetch('./api/save',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slot:'default',state})});}catch{}}
 init().catch(e=>{$('loadText').textContent='초기화 오류: '+e.message;console.error(e)});
