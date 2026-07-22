@@ -7,6 +7,7 @@ const TILE_W=96,TILE_H=48;
 let W=0,H=0,last=performance.now(),selected=null,started=false;
 let camera={x:0,y:0,zoom:1},keys={},joy={x:0,y:0},run=false;
 const images={}, interactables=[], decorative=[], buildings=[], plots=[];
+const CHARACTER_BASE_URL = "./public/assets/characters/";
 const state={
   gold:300,seeds:0,harvest:0,level:1,character:"hunmin",
   player:{x:13,y:18,speed:3.3},
@@ -114,8 +115,8 @@ function toast(s){ui("toast").textContent=s;ui("toast").classList.add("show");cl
 function save(){localStorage.setItem("komscoIsoSave",JSON.stringify(state))}
 function load(){try{const s=JSON.parse(localStorage.getItem("komscoIsoSave"));if(s)Object.assign(state,s)}catch{}}
 function loop(now){const dt=Math.min(.04,(now-last)/1000);last=now;update(dt);drawWorld();requestAnimationFrame(loop)}
-function loadAssets(){let done=0;return Promise.all(Object.entries(chars).map(([id,c])=>new Promise(res=>{const im=new Image();im.src=`./assets/characters/${c.img}`;im.onload=()=>{images[id]=im;done++;ui("loadBar").style.width=(done/3*100)+"%";res()};im.onerror=()=>res()})))}
-function buildCharacterCards(){ui("characterCards").innerHTML=Object.entries(chars).map(([id,c])=>`<article class="character-card" data-char="${id}"><img src="./assets/characters/${c.img}" alt="${c.name}"><h3>${c.name}</h3><b>${c.role}</b><p>${c.desc}</p></article>`).join("");document.querySelectorAll(".character-card").forEach(el=>el.onclick=()=>{selected=el.dataset.char;document.querySelectorAll(".character-card").forEach(x=>x.classList.toggle("selected",x===el));ui("startBtn").disabled=false});}
+function loadAssets(){let done=0;return Promise.all(Object.entries(chars).map(([id,c])=>new Promise(res=>{const im=new Image();im.src=`${CHARACTER_BASE_URL}${c.img}`;im.onload=()=>{images[id]=im;done++;ui("loadBar").style.width=(done/3*100)+"%";res()};im.onerror=()=>{console.error(`캐릭터 이미지 로드 실패: ${im.src}`);res()}})))}
+function buildCharacterCards(){ui("characterCards").innerHTML=Object.entries(chars).map(([id,c])=>`<article class="character-card" data-char="${id}"><img src="${CHARACTER_BASE_URL}${c.img}" alt="${c.name}"><h3>${c.name}</h3><b>${c.role}</b><p>${c.desc}</p></article>`).join("");document.querySelectorAll(".character-card").forEach(el=>el.onclick=()=>{selected=el.dataset.char;document.querySelectorAll(".character-card").forEach(x=>x.classList.toggle("selected",x===el));ui("startBtn").disabled=false});}
 addEventListener("keydown",e=>{keys[e.key]=true;if(e.key==="e"||e.key==="Enter")interact()});addEventListener("keyup",e=>keys[e.key]=false);
 canvas.addEventListener("wheel",e=>{camera.zoom=Math.max(.65,Math.min(1.25,camera.zoom-e.deltaY*.0005))},{passive:true});
 let drag=null;canvas.addEventListener("pointerdown",e=>{if(e.pointerType==="mouse")drag={x:e.clientX,y:e.clientY}});canvas.addEventListener("pointermove",e=>{if(drag){camera.x+=e.clientX-drag.x;camera.y+=e.clientY-drag.y;drag={x:e.clientX,y:e.clientY}}});addEventListener("pointerup",()=>drag=null);
