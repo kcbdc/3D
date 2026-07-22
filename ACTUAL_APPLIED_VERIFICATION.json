@@ -1,0 +1,9 @@
+{
+  "actual_world_engine": "approved neon city raster background + canvas character/hotspot overlay",
+  "old_isometric_prism_world_removed": true,
+  "hero_background": "public/assets/ui/hero_neon_scene.jpg",
+  "world_background": "public/assets/ui/city_neon_world.jpg",
+  "character_path": "./public/assets/characters/",
+  "cache_version": "20260723-neon-actual-v2",
+  "build_required": false
+}
