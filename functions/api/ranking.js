@@ -1,0 +1,1 @@
+export async function onRequestGet({env}){if(!env.DB)return Response.json({ok:true,ranking:[]});const r=await env.DB.prepare("SELECT user_id,score FROM rankings ORDER BY score DESC LIMIT 20").all();return Response.json({ok:true,ranking:r.results});}

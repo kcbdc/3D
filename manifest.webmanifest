@@ -1,0 +1,9 @@
+{
+  "name": "KOMSCO Neon Farm City",
+  "short_name": "KOMSCO Farm",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#020713",
+  "theme_color": "#06111f",
+  "icons": []
+}
