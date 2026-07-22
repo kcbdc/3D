@@ -1,3 +1,0 @@
-export function onRequestGet() {
-  return Response.json({ ok: true, now: Date.now(), iso: new Date().toISOString() });
-}
