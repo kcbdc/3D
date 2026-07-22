@@ -1,0 +1,9 @@
+{
+  "edition": "2.5D Canvas No-Module Fixed",
+  "version": "2026.07.23-nomodule",
+  "entry": "index.html",
+  "script": "game.js",
+  "uses_es_modules": false,
+  "uses_import_statements": false,
+  "build_required": false
+}
