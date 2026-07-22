@@ -70,3 +70,12 @@ dist/index.html
 dist/assets/*.js
 dist/assets/models/hunmin.glb
 ```
+
+
+## Cloudflare Pages Functions
+- `functions/api/test.js`
+- `functions/api/save.js`
+- `functions/api/load.js`
+- `functions/api/ranking.js`
+
+자세한 배포 절차는 `CLOUDFLARE_SETUP.md`를 참조하세요.
