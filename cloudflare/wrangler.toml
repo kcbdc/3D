@@ -1,4 +1,4 @@
-name = "komsco-farm-universe-3d"
+name = "komsco-3d"
 main = "src/worker.js"
 compatibility_date = "2026-07-01"
 
@@ -8,5 +8,5 @@ binding = "ASSETS"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "komsco-farm-universe"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_name = "komsco-3d"
+database_id = "0e2e6b84-54be-4cf2-af3b-e544dfc35a7a"
