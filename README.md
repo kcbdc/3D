@@ -1,131 +1,46 @@
-# KOMSCO Farm Universe — Vite + Three.js
+# KOMSCO Weekend Farm City — 2.5D Isometric Edition
 
-브라우저에서 `three` 패키지명을 직접 해석하지 못해 발생하던 오류를 제거하기 위해 Vite 번들 구조로 재구성한 프로젝트입니다.
+첨부된 캐릭터·건물·상점·다리·차량·환경 턴어라운드 자료의 색감과 구성을 참고하여,
+기존 Three.js 3D 게임을 **3D 느낌이 강한 2D 아이소메트릭 캔버스 게임**으로 전환한 소스입니다.
 
-## 로컬 테스트
+## 핵심 구조
 
-Node.js 20 이상에서 실행합니다.
+- Canvas 2D 아이소메트릭 렌더링
+- 레고시티 풍의 절차형 도시 스케치
+- 고화질 투명 PNG 캐릭터 컷아웃
+- 연결된 순환도로·인도·강·다리
+- 본부 업무 → 골드 → 씨앗 구매 → 밭 심기 → 성장 → 수확
+- 키보드, 마우스, 모바일 조이스틱 지원
+- 깊이감 있는 건물 프리즘, 그림자, 이동 차량·배, 환경 애니메이션
+- 로컬 저장 및 Cloudflare Pages Functions 서버시간 API
 
-```bash
-npm install
-npm run dev
-```
+## 실행
 
-브라우저에서 표시된 주소(기본 `http://localhost:5173`)로 접속합니다.
-
-프로덕션 빌드 확인:
-
-```bash
-npm run build
-npm run preview
-```
-
-`dist/` 폴더가 실제 배포 대상입니다. 저장소의 `src` 폴더를 GitHub Pages에 직접 공개하지 마십시오.
-
-## GitHub Pages 자동 배포
-
-1. 프로젝트 전체를 GitHub 저장소 루트에 업로드합니다.
-2. 저장소 기본 브랜치를 `main`으로 둡니다.
-3. GitHub 저장소의 **Settings → Pages → Build and deployment → Source**를 `GitHub Actions`로 설정합니다.
-4. `main` 브랜치에 push하면 `.github/workflows/deploy-pages.yml`이 `dist`를 생성해 배포합니다.
-
-저장소가 `https://github.com/kcbdc/3D`라면 배포 주소는 일반적으로 다음과 같습니다.
-
-```text
-https://kcbdc.github.io/3D/
-```
-
-기존처럼 `/3D/public/`로 접속하지 않습니다.
-
-## 수동 배포
+별도 빌드가 필요 없는 정적 프로젝트입니다.
 
 ```bash
-npm install
-npm run build
+python -m http.server 8080
 ```
 
-생성된 `dist` 폴더의 내용만 Pages 배포 브랜치 또는 호스팅 서비스에 올립니다.
+브라우저에서 `http://localhost:8080` 접속.
 
-## 폴더 구조
+GitHub Pages나 Cloudflare Pages에서는 프로젝트 파일을 그대로 배포하면 됩니다.
 
-```text
-├─ index.html
-├─ src/main.js
-├─ public/assets/models/*.glb
-├─ cloudflare/
-├─ vite.config.js
-└─ .github/workflows/deploy-pages.yml
-```
+## 조작
 
-## Cloudflare 백엔드
+- PC: WASD / 방향키 이동, Shift 달리기, E 또는 Enter 상호작용
+- 모바일: 좌측 조이스틱, 우측 달리기, 중앙 상호작용 버튼
+- 마우스 휠: 화면 배율
+- 마우스 드래그: 카메라 이동
 
-`cloudflare` 폴더는 Workers + D1 백엔드 골격입니다. GitHub Pages는 정적 호스팅이므로 `/api/save`를 제공하지 않습니다. 현재 게임은 GitHub Pages에서 `localStorage`로 저장하고, Workers 배포 환경에서는 API 저장 기능을 연결할 수 있습니다.
+## Cloudflare Pages
 
-## 문제 확인
+- Framework preset: None
+- Build command: 비워 둠
+- Build output directory: `/`
+- Functions는 `/functions/api/time.js`가 자동으로 `/api/time`으로 연결됩니다.
 
-빌드 후 아래 파일이 존재해야 합니다.
+## 참고
 
-```text
-dist/index.html
-dist/assets/*.js
-dist/assets/models/hunmin.glb
-```
-
-
-## Cloudflare Pages Functions
-- `functions/api/test.js`
-- `functions/api/save.js`
-- `functions/api/load.js`
-- `functions/api/ranking.js`
-
-자세한 배포 절차는 `CLOUDFLARE_SETUP.md`를 참조하세요.
-
-## 2026 UI/UX 고도화 적용사항
-- 자연스러운 연속형 강·하천 제방·교량·순환 도로·인도 재배치
-- 3인칭 가속/감속 이동, 달리기, 카메라 추적 및 충돌 보정
-- GLB 애니메이션 클립 자동 탐색·재생, 미포함 모델은 보행 바운스 보정
-- 모바일 HUD, 접이식 퀘스트, 미니맵·나침반·거리 안내
-- 첫 사용자 튜토리얼, 코스튬 색상/모자, 가방·지도·설정 UI
-- 서버시간 API(`/api/time`)를 이용한 농작물 심기 시각 기준
-- 저사양/고품질 렌더링 선택 및 모바일 자동 최적화
-
-### 정식 서비스 전 추가 권장
-현재 버전은 상용화 전 단계의 고도화 프로토타입입니다. 원본 GLB에 실제 스켈레톤/걷기·달리기 애니메이션이 있어야 완전한 리깅 애니메이션이 작동합니다. 정식 운영에서는 NavMesh 생성 도구, 사용자별 인증 토큰, 서버 측 재화 검증, KTX2/Meshopt 변환 파이프라인과 모델별 LOD 제작을 별도 적용하는 것을 권장합니다.
-
-## 2026 UI/UX 고도화 반영 사항
-
-- 연속형 강·제방·도로·인도·교량 월드 재배치
-- 3인칭 카메라, 가속·감속, 달리기, 건물 충돌 보정
-- GLB 애니메이션 자동 탐색 및 무애니메이션 모델 보행 보정
-- 미니맵, 거리 기반 상호작용, 튜토리얼, 반응형 모바일 HUD
-- 업무→골드→씨앗 구매→재배→수확 게임 루프
-- 코스튬 색상·모자, 가방, 지도, 그래픽 설정
-- Cloudflare Pages Functions `/api/time` 기반 식물 심기 시각 기록
-
-### 정식 서비스 전 추가 권장
-
-현재 GLB에 스켈레톤 애니메이션 클립이 없다면 코드 기반 보행 보정만 적용됩니다. 완전한 상용 품질을 위해서는 리깅된 Idle/Walk/Run 애니메이션, NavMesh 베이크, 사용자 인증, 서버 권한 검증, LOD 모델 제작, KTX2 텍스처 및 Meshopt/Draco 압축 파이프라인이 필요합니다.
-
-
-## 고해상도 캐릭터 빌보드 적용
-
-- 훈민·다임·순식 캐릭터 GLB 메시를 제거하고 첨부 턴어라운드의 전신 이미지를 투명 PNG 컷아웃으로 적용했습니다.
-- Three.js `SpriteMaterial`을 사용하여 캐릭터가 항상 카메라를 향합니다.
-- 원본 이미지 비율과 해상도를 유지하고, 밉맵·선형 필터·이방성 필터를 적용했습니다.
-- 이동 중에는 미세한 상하 바운스만 적용하여 2D 컷아웃 특유의 흔들림을 최소화했습니다.
-- 캐릭터 선택 화면도 동일한 고해상도 PNG를 사용합니다.
-- 기존 캐릭터 GLB 3종은 패키지에서 제외했으며 건물·수목·환경 GLB는 그대로 유지합니다.
-
-### 캐릭터 이미지 경로
-
-```text
-public/assets/characters/
-├─ hunmin.png
-├─ daim.png
-└─ sunsik.png
-```
-
-### 참고
-
-첨부 턴어라운드 한 장에서 전신 정면 이미지를 분리한 컷아웃입니다. 원본 픽셀 정보를 최대한 유지했지만,
-배경 제거 경계에는 투명도 보정이 적용되어 원본 시트 전체와 완전히 동일한 픽셀 배열은 아닙니다.
+도시 객체는 첨부된 턴어라운드 자료를 직접 복사한 것이 아니라, 동일한 블록형·레고시티 분위기를
+Canvas 도형과 아이소메트릭 투영으로 재구성한 것입니다. 캐릭터는 이전 단계에서 분리한 고해상도 PNG 컷아웃을 사용합니다.
