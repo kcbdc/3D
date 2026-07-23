@@ -1,0 +1,28 @@
+{
+  "version": "2026.07.23-guideline-dpad-v7",
+  "reference_target": "기준.png",
+  "route_guides": {
+    "always_visible": true,
+    "animated_dashes": true,
+    "direction_arrows": true,
+    "bridge_highlight": true
+  },
+  "character_cleanup": {
+    "edge_connected_background_removed": true,
+    "low_alpha_artifacts_removed": true,
+    "output_folder": "public/assets/characters_clean"
+  },
+  "controls": {
+    "direction_pad": true,
+    "keyboard": true,
+    "auto_path": true
+  },
+  "collision": {
+    "roads_only": true,
+    "buildings_blocked": true,
+    "water_blocked": true,
+    "bridge_only_crossing": true
+  },
+  "html_included": true,
+  "javascript_syntax": "passed"
+}

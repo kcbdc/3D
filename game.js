@@ -4,9 +4,9 @@ const ui=id=>document.getElementById(id);
 const canvas=ui("game"),ctx=canvas.getContext("2d",{alpha:false});
 const DPR=Math.min(devicePixelRatio||1,2);
 const BG="./public/assets/ui/neon_world_clean_v6.jpg";
-const CHAR="./public/assets/characters_chibi/";
+const CHAR="./public/assets/characters_clean/";
 let W=0,H=0,last=performance.now(),started=false,selected=null,run=false,bg=null;
-const keys={},joy={x:0,y:0},images={};
+const keys={},joy={x:0,y:0},dpadState={up:false,down:false,left:false,right:false},images={};
 let bgRect={x:0,y:0,w:1,h:1},autoPath=[];
 
 const chars={
@@ -128,9 +128,57 @@ function startAutoTo(h){
  autoPath.push({x:h.x,y:h.y});
  toast(`${h.label} 경로 안내를 시작합니다.`);
 }
+
+function drawRouteGuides(){
+ const now=performance.now()/1000;
+ ctx.save();
+ ctx.lineCap="round";ctx.lineJoin="round";
+ for(const [a,b] of edges){
+  const A=worldToScreen(...nodes[a]),B=worldToScreen(...nodes[b]);
+  const bridge=bridgeKeys.has(edgeKey(a,b));
+  ctx.strokeStyle=bridge?"rgba(82,220,255,.96)":"rgba(52,179,255,.66)";
+  ctx.shadowColor=bridge?"#5deaff":"#24b8ff";
+  ctx.shadowBlur=bridge?18:11;
+  ctx.lineWidth=bridge?5:3;
+  ctx.setLineDash(bridge?[7,8]:[3,11]);
+  ctx.lineDashOffset=-(now*18)%30;
+  ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);ctx.stroke();
+
+  // 일정 간격 방향 화살표
+  const vx=B.x-A.x,vy=B.y-A.y,len=Math.hypot(vx,vy);
+  if(len>70){
+   const ux=vx/len,uy=vy/len;
+   const count=Math.max(1,Math.floor(len/140));
+   for(let i=1;i<=count;i++){
+    const t=i/(count+1),x=A.x+vx*t,y=A.y+vy*t;
+    const size=bridge?9:7;
+    ctx.save();ctx.translate(x,y);ctx.rotate(Math.atan2(vy,vx));
+    ctx.fillStyle=bridge?"rgba(198,249,255,.94)":"rgba(132,222,255,.80)";
+    ctx.beginPath();ctx.moveTo(size,0);ctx.lineTo(-size*.65,-size*.55);ctx.lineTo(-size*.65,size*.55);ctx.closePath();ctx.fill();
+    ctx.restore();
+   }
+  }
+ }
+ ctx.setLineDash([]);ctx.restore();
+}
+
+function drawDestinationGuide(){
+ const near=hotspots.reduce((best,h)=>{
+  const d=Math.hypot(state.player.x-h.x,state.player.y-h.y);
+  return !best||d<best.d?{h,d}:best;
+ },null);
+ if(!near)return;
+ const p=worldToScreen(near.h.x,near.h.y);
+ ctx.save();ctx.strokeStyle="rgba(255,218,76,.95)";ctx.shadowColor="#ffd43e";ctx.shadowBlur=18;ctx.lineWidth=2;
+ const radius=17+Math.sin(performance.now()/260)*3;
+ ctx.beginPath();ctx.arc(p.x,p.y,radius,0,Math.PI*2);ctx.stroke();
+ ctx.restore();
+}
+
 function draw(){
  ctx.fillStyle="#020712";ctx.fillRect(0,0,W,H);
  if(bg){updateBgRect();ctx.drawImage(bg,bgRect.x,bgRect.y,bgRect.w,bgRect.h)}
+ drawRouteGuides();drawDestinationGuide();
  if(location.search.includes("debug=1"))drawDebug();
  drawHotspots();drawCrops();drawPlayer();
 }
@@ -166,7 +214,7 @@ function drawPlayer(){
  ctx.save();ctx.translate(p.x,p.y);ctx.globalAlpha=.28;ctx.fillStyle="#000";ctx.beginPath();ctx.ellipse(0,6,w*.34,w*.12,0,0,Math.PI*2);ctx.fill();
  ctx.globalAlpha=1;ctx.globalCompositeOperation="source-over";ctx.shadowColor="#2ed5ff";ctx.shadowBlur=18;ctx.scale(state.player.dir,1);ctx.drawImage(img,-w/2,-h+bob,w,h);ctx.restore();
 }
-function isMoving(){return Math.hypot(joy.x,joy.y)>.05||keys.ArrowUp||keys.ArrowDown||keys.ArrowLeft||keys.ArrowRight||keys.w||keys.a||keys.s||keys.d||autoPath.length}
+function isMoving(){return dpadState.up||dpadState.down||dpadState.left||dpadState.right||Math.hypot(joy.x,joy.y)>.05||keys.ArrowUp||keys.ArrowDown||keys.ArrowLeft||keys.ArrowRight||keys.w||keys.a||keys.s||keys.d||autoPath.length}
 function update(dt){
  if(!started)return;
  let dx=0,dy=0;
@@ -174,8 +222,8 @@ function update(dt){
   const target=autoPath[0];dx=target.x-state.player.x;dy=target.y-state.player.y;
   if(Math.hypot(dx,dy)<1.1){autoPath.shift();dx=0;dy=0}
  }else{
-  dx=joy.x+(keys.ArrowRight||keys.d?1:0)-(keys.ArrowLeft||keys.a?1:0);
-  dy=joy.y+(keys.ArrowDown||keys.s?1:0)-(keys.ArrowUp||keys.w?1:0);
+  dx=(dpadState.right?1:0)-(dpadState.left?1:0)+(keys.ArrowRight||keys.d?1:0)-(keys.ArrowLeft||keys.a?1:0);
+  dy=(dpadState.down?1:0)-(dpadState.up?1:0)+(keys.ArrowDown||keys.s?1:0)-(keys.ArrowUp||keys.w?1:0);
  }
  const len=Math.hypot(dx,dy);
  if(len>.05){
@@ -222,7 +270,17 @@ async function assets(){let n=0;bg=await loadImage(BG);updateBgRect();ui("loadBa
 function cards(){ui("characterCards").innerHTML=Object.entries(chars).map(([id,c])=>`<article class=character-card data-char="${id}"><img src="${CHAR+c.img}" alt="${c.name}"><h3>${c.name}</h3><b>${c.role}</b><p>${c.desc}</p></article>`).join("");document.querySelectorAll(".character-card").forEach(e=>e.onclick=()=>{selected=e.dataset.char;document.querySelectorAll(".character-card").forEach(x=>x.classList.toggle("selected",x===e));ui("startBtn").disabled=false})}
 const bind=(id,fn)=>{const e=ui(id);if(e)e.onclick=fn};
 addEventListener("keydown",e=>{keys[e.key]=true;if(e.key==="e"||e.key==="Enter")interact()});addEventListener("keyup",e=>keys[e.key]=false);
-const joyEl=ui("joystick"),stick=ui("stick");function joyMove(e){const r=joyEl.getBoundingClientRect(),x=e.clientX-(r.left+r.width/2),y=e.clientY-(r.top+r.height/2),m=Math.min(38,Math.hypot(x,y)),a=Math.atan2(y,x);joy.x=Math.cos(a)*m/38;joy.y=Math.sin(a)*m/38;stick.style.transform=`translate(${joy.x*32}px,${joy.y*32}px)`}joyEl.onpointerdown=e=>{joyEl.setPointerCapture(e.pointerId);autoPath=[];joyMove(e)};joyEl.onpointermove=e=>{if(joyEl.hasPointerCapture(e.pointerId))joyMove(e)};joyEl.onpointerup=()=>{joy={x:0,y:0};stick.style.transform=""};ui("runBtn").onpointerdown=()=>run=true;ui("runBtn").onpointerup=()=>run=false;
+function bindDpad(buttonId,key){
+ const button=ui(buttonId);if(!button)return;
+ const press=e=>{e.preventDefault();autoPath=[];dpadState[key]=true;button.classList.add("pressed");button.setPointerCapture?.(e.pointerId)};
+ const release=e=>{e?.preventDefault?.();dpadState[key]=false;button.classList.remove("pressed")};
+ button.addEventListener("pointerdown",press);
+ button.addEventListener("pointerup",release);
+ button.addEventListener("pointercancel",release);
+ button.addEventListener("pointerleave",release);
+}
+bindDpad("moveUp","up");bindDpad("moveDown","down");bindDpad("moveLeft","left");bindDpad("moveRight","right");
+ui("runBtn").onpointerdown=()=>run=true;ui("runBtn").onpointerup=()=>run=false;
 bind("interactBtn",interact);bind("shopBtn",openShop);bind("shopShortcut",openShop);bind("bagBtn",openBag);bind("mapBtn",()=>generic("🗺️ 지도","도로·인도와 파란 발광 다리를 따라 이동하세요."));bind("questBtn",()=>ui("questPanel").classList.toggle("closed"));bind("questToggle",()=>ui("questPanel").classList.toggle("closed"));bind("characterBtn",()=>generic("🛡️ 캐릭터",`${chars[state.character].name} · ${chars[state.character].role}`));bind("friendBtn",()=>generic("👥 친구","친구 농장 방문 기능 준비 화면입니다."));bind("mailBtn",()=>generic("✉️ 우편","운영 보상과 안내 메시지가 표시됩니다."));bind("rankingBtn",()=>generic("🏆 랭킹",`현재 점수 ${state.gold+state.harvest*100}`));bind("codexBtn",()=>generic("📖 도감",`첫 업무 ${state.achievements.firstWork?"완료":"미완료"} · 첫 수확 ${state.achievements.firstHarvest?"완료":"미완료"}`));bind("settingsTopBtn",()=>generic("⚙️ 설정","그래픽·사운드 설정 확장 지점입니다."));bind("autoBtn",()=>{const h=hotspots.reduce((a,b)=>Math.hypot(state.player.x-a.x,state.player.y-a.y)<Math.hypot(state.player.x-b.x,state.player.y-b.y)?a:b);startAutoTo(h)});bind("claimRewardBtn",()=>{if(state.quests.every(Boolean)){state.gold+=500;state.quests=[false,false,false,false];toast("일일 보상 +500G");save()}else toast("모든 퀘스트를 완료하세요.")});bind("modalClose",closeModal);ui("modal").onclick=e=>{if(e.target===ui("modal"))closeModal()};bind("startBtn",()=>{state.character=selected;started=true;ui("characterSelect").classList.remove("show");save();toast(`${chars[selected].name}과 함께 시작합니다.`)});
 let prev=performance.now();function loop(now){const dt=Math.min(.04,(now-prev)/1000);prev=now;update(dt);draw();requestAnimationFrame(loop)}
 (async()=>{resize();load();cards();await assets();setTimeout(()=>{ui("loading").classList.remove("show");ui("characterSelect").classList.add("show")},250);updateUI();requestAnimationFrame(loop);if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{})})();

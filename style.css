@@ -100,3 +100,51 @@ html,body,#app{font-family:"Noto Sans KR","Noto Sans","Pretendard","Malgun Gothi
   .left-panel{max-height:43vh;overflow:auto}
   .bottom-menu{bottom:8px}
 }
+
+/* v7 기준 시안 개선: 이동 유도선 + 방향키 패드 */
+.joystick{display:none!important}
+.dpad{
+  position:fixed;z-index:24;left:34px;bottom:88px;
+  width:210px;height:210px;border-radius:50%;
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  grid-template-rows:1fr 1fr 1fr;
+  padding:15px;
+  background:
+    radial-gradient(circle at center,rgba(8,36,63,.90) 0 28%,rgba(9,34,59,.68) 29% 56%,rgba(7,21,40,.86) 57% 100%);
+  border:2px solid rgba(89,200,255,.78);
+  box-shadow:0 0 30px rgba(41,174,255,.55),inset 0 0 38px rgba(45,176,255,.22);
+  backdrop-filter:blur(8px);
+}
+.dpad button{
+  border:0;background:transparent;color:#d7edff;
+  font-size:42px;font-weight:900;
+  text-shadow:0 0 13px rgba(75,195,255,.92);
+  cursor:pointer;touch-action:none;
+}
+.dpad button:active,.dpad button.pressed{
+  color:#fff;background:radial-gradient(circle,rgba(54,189,255,.34),transparent 68%);
+  transform:scale(.92);
+}
+.dpad-up{grid-column:2;grid-row:1}
+.dpad-left{grid-column:1;grid-row:2}
+.dpad-center{
+  grid-column:2;grid-row:2;border-radius:50%;
+  border:3px solid #83d7ff;
+  box-shadow:0 0 20px #38baff,inset 0 0 20px #268dcc;
+  background:radial-gradient(circle,#103f65,#071a2e);
+}
+.dpad-right{grid-column:3;grid-row:2}
+.dpad-down{grid-column:2;grid-row:3}
+.auto-btn{left:180px!important;bottom:55px!important}
+.route-legend{
+  position:fixed;z-index:21;left:265px;bottom:95px;
+  padding:8px 12px;border-radius:13px;
+  background:rgba(4,16,30,.82);border:1px solid rgba(54,198,255,.35);
+  color:#bfefff;font-size:11px;pointer-events:none
+}
+@media(max-width:920px){
+  .dpad{left:15px;bottom:82px;width:168px;height:168px;padding:10px}
+  .dpad button{font-size:32px}
+  .auto-btn{left:135px!important;bottom:45px!important}
+}

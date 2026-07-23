@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#06111f">
   <meta name="color-scheme" content="dark">
   <title>KOMSCO Neon Farm City</title>
-  <link rel="stylesheet" href="./style.css?v=20260723-routefix-v6">
+  <link rel="stylesheet" href="./style.css?v=20260723-guideline-dpad-v7">
   <link rel="manifest" href="./manifest.webmanifest">
 </head>
 <body>
@@ -102,7 +102,13 @@
       <button id="interactBtn" class="interact"><i>⚔</i><span>상호작용</span></button>
     </nav>
 
-    <div id="joystick" class="joystick" aria-label="이동 조이스틱"><div id="stick"></div></div>
+    <div id="dpad" class="dpad" aria-label="이동 방향키">
+      <button id="moveUp" class="dpad-up" aria-label="위로 이동">▲</button>
+      <button id="moveLeft" class="dpad-left" aria-label="왼쪽 이동">◀</button>
+      <div class="dpad-center"></div>
+      <button id="moveRight" class="dpad-right" aria-label="오른쪽 이동">▶</button>
+      <button id="moveDown" class="dpad-down" aria-label="아래로 이동">▼</button>
+    </div>
     <button id="runBtn" class="run-btn">RUN</button>
 
     <div id="toast" class="toast" aria-live="polite"></div>
@@ -128,6 +134,6 @@
   <script defer src="./src/ui/ui.js"></script>
   <script defer src="./src/main.js"></script>
 
-  <script defer src="./game.js?v=20260723-routefix-v6"></script>
+  <script defer src="./game.js?v=20260723-guideline-dpad-v7"></script>
 </body>
 </html>
