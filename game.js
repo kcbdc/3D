@@ -5,7 +5,7 @@ const ctx=canvas?.getContext("2d",{alpha:false,desynchronized:true})||canvas?.ge
 if(!canvas||!ctx)throw new Error("Canvas 2D를 초기화할 수 없습니다.");
 const WORLD=KOMSCO.WORLD,PATH=KOMSCO.PathEngine,SYS=KOMSCO.GameSystems;
 const CHARS=SYS.characters,SEEDS=SYS.seeds,CHAR_BASE="./public/assets/characters/";
-const DAY="./public/assets/world/world_final_day.jpg",NIGHT="./public/assets/world/world_final.jpg";
+const DAY="./public/assets/world/world_exact_map.png",NIGHT="./public/assets/world/world_exact_map.png";
 const DPR=Math.min(devicePixelRatio||1, innerWidth<900?1.35:1.75);
 let W=0,H=0,bgRect={x:0,y:0,w:1,h:1},bgDay,bgNight,last=performance.now(),selected=null,started=false,run=false,autoPath=[],currentEdge=null,lastUiUpdate=0;
 const images={},keys={},dpad={up:false,down:false,left:false,right:false};let state=SYS.newState();
@@ -19,7 +19,7 @@ function resize(){
  H=Math.max(180,Math.round(r.height||innerHeight||720));
  canvas.width=Math.max(1,Math.round(W*DPR));
  canvas.height=Math.max(1,Math.round(H*DPR));canvas.style.width=W+"px";canvas.style.height=H+"px";ctx.setTransform(DPR,0,0,DPR,0,0);updateBgRect();rebuildRouteCache()}
-function updateBgRect(){const im=activeBg();if(!im){bgRect={x:0,y:0,w:W,h:H};return}const ir=im.width/im.height,vr=W/H;if(ir>vr){bgRect.h=H;bgRect.w=H*ir;bgRect.x=(W-bgRect.w)/2;bgRect.y=0}else{bgRect.w=W;bgRect.h=W/ir;bgRect.x=0;bgRect.y=(H-bgRect.h)/2}}
+function updateBgRect(){bgRect={x:0,y:0,w:W,h:H};}
 const w2s=(x,y)=>({x:bgRect.x+x/100*bgRect.w,y:bgRect.y+y/100*bgRect.h});
 function loadImage(src){
  return new Promise(resolve=>{
@@ -30,83 +30,49 @@ function loadImage(src){
    im.src=src;
  });
 }
-function edgeProjection(edge,x,y){const [a,b]=edge,A=WORLD.nodes[a],B=WORLD.nodes[b],vx=B[0]-A[0],vy=B[1]-A[1],den=vx*vx+vy*vy,t=den?Math.max(0,Math.min(1,((x-A[0])*vx+(y-A[1])*vy)/den)):0;return{x:A[0]+t*vx,y:A[1]+t*vy,t,vx,vy,length:Math.sqrt(den)}}
-function nearestEdges(x,y,limit=4){return WORLD.edges.map(e=>{const q=edgeProjection(e,x,y);return{edge:e,...q,d:Math.hypot(x-q.x,y-q.y)}}).sort((a,b)=>a.d-b.d).slice(0,limit)}
-function connectedEdges(nodeId){
-  return WORLD.edges.filter(([a,b])=>a===nodeId||b===nodeId);
+function edgeProjection(edge,x,y){
+ const [a,b]=edge,A=WORLD.nodes[a],B=WORLD.nodes[b];
+ const vx=B[0]-A[0],vy=B[1]-A[1],den=vx*vx+vy*vy;
+ const t=den?Math.max(0,Math.min(1,((x-A[0])*vx+(y-A[1])*vy)/den)):0;
+ return{x:A[0]+t*vx,y:A[1]+t*vy,t,vx,vy,length:Math.sqrt(den)};
 }
-function normalizedEdge(edge){
-  return edge?edge.join("|"):"";
-}
+function edgeKey(edge){return edge?`${edge[0]}|${edge[1]}`:""}
+function connectedEdges(nodeId){return WORLD.edges.filter(([a,b])=>a===nodeId||b===nodeId)}
 function edgeInfo(edge,x=state.player.x,y=state.player.y){
-  const q=edgeProjection(edge,x,y);
-  const len=Math.hypot(q.vx,q.vy)||1;
-  return {...q,tx:q.vx/len,ty:q.vy/len};
+ const q=edgeProjection(edge,x,y),len=Math.hypot(q.vx,q.vy)||1;
+ return{...q,tx:q.vx/len,ty:q.vy/len};
 }
-function chooseInitialEdge(dx,dy){
-  const candidates=nearestEdges(state.player.x,state.player.y,8);
-  let best=null,bestScore=-Infinity;
-  for(const c of candidates){
-    if(c.d>WORLD.roadWidth*1.5)continue;
-    const len=Math.hypot(c.vx,c.vy)||1;
-    const tx=c.vx/len,ty=c.vy/len;
-    const align=Math.abs(dx*tx+dy*ty);
-    const score=align*2+(1-c.d/(WORLD.roadWidth*1.5));
-    if(score>bestScore){bestScore=score;best=c}
-  }
-  return best;
-}
-function selectNextEdge(nodeId,dx,dy,previousEdge){
-  const candidates=connectedEdges(nodeId);
-  let best=null,bestScore=-Infinity;
-  for(const edge of candidates){
-    const other=edge[0]===nodeId?edge[1]:edge[0];
-    const p=WORLD.nodes[other],n=WORLD.nodes[nodeId];
-    const vx=p[0]-n[0],vy=p[1]-n[1],len=Math.hypot(vx,vy)||1;
-    let score=dx*(vx/len)+dy*(vy/len);
-    if(previousEdge&&normalizedEdge(edge)===normalizedEdge(previousEdge))score-=.15;
-    if(score>bestScore){bestScore=score;best=edge}
-  }
-  return bestScore>-.25?best:null;
+function nearestEdge(){return PATH.nearestRoad(WORLD,state.player.x,state.player.y).edge}
+function chooseEdgeAtNode(nodeId,inputX,inputY,previousEdge){
+ const node=WORLD.nodes[nodeId];let best=null,bestScore=-Infinity;
+ for(const edge of connectedEdges(nodeId)){
+   const other=edge[0]===nodeId?edge[1]:edge[0],target=WORLD.nodes[other];
+   const vx=target[0]-node[0],vy=target[1]-node[1],len=Math.hypot(vx,vy)||1;
+   const penalty=previousEdge&&edgeKey(edge)===edgeKey(previousEdge)?.08:0;
+   const score=inputX*(vx/len)+inputY*(vy/len)-penalty;
+   if(score>bestScore){bestScore=score;best=edge}
+ }
+ return bestScore>.08?best:null;
 }
 function moveOnRoute(dx,dy,dt){
-  const mag=Math.hypot(dx,dy);
-  if(mag<.05)return;
-  dx/=mag;dy/=mag;
-
-  if(!currentEdge){
-    const initial=chooseInitialEdge(dx,dy);
-    if(!initial)return;
-    currentEdge=initial.edge;
-  }
-
-  let info=edgeInfo(currentEdge);
-  const forwardDot=dx*info.tx+dy*info.ty;
-  const sign=forwardDot>=0?1:-1;
-  const speed=state.player.speed*CHARS[state.character].speed*(run||keys.Shift?1.45:1);
-  const projected=edgeProjection(
-    currentEdge,
-    info.x+info.tx*sign*speed*dt,
-    info.y+info.ty*sign*speed*dt
-  );
-
-  state.player.x=projected.x;
-  state.player.y=projected.y;
-
-  const desiredDir=info.tx*sign<0?-1:1;
-  state.player.dirLerp=(state.player.dirLerp??state.player.dir??1)+(desiredDir-(state.player.dirLerp??state.player.dir??1))*Math.min(1,dt*8);
-  state.player.dir=state.player.dirLerp<0?-1:1;
-
-  const atStart=projected.t<=.012;
-  const atEnd=projected.t>=.988;
-  if(atStart||atEnd){
-    const nodeId=atStart?currentEdge[0]:currentEdge[1];
-    const node=WORLD.nodes[nodeId];
-    state.player.x=node[0];
-    state.player.y=node[1];
-    const next=selectNextEdge(nodeId,dx,dy,currentEdge);
-    if(next)currentEdge=next;
-  }
+ const magnitude=Math.hypot(dx,dy);if(magnitude<.05)return;
+ dx/=magnitude;dy/=magnitude;
+ if(!currentEdge)currentEdge=nearestEdge();
+ if(!currentEdge)return;
+ const info=edgeInfo(currentEdge);
+ const sign=(dx*info.tx+dy*info.ty)>=0?1:-1;
+ const speed=state.player.speed*CHARS[state.character].speed*(run||keys.Shift?1.42:1);
+ const projected=edgeProjection(currentEdge,info.x+info.tx*sign*speed*dt,info.y+info.ty*sign*speed*dt);
+ state.player.x=projected.x;state.player.y=projected.y;
+ const desired=info.tx*sign<0?-1:1;
+ state.player.dirLerp=(state.player.dirLerp??state.player.dir??1)+(desired-(state.player.dirLerp??state.player.dir??1))*Math.min(1,dt*9);
+ state.player.dir=state.player.dirLerp<0?-1:1;
+ if(projected.t<=.006||projected.t>=.994){
+   const nodeId=projected.t<=.006?currentEdge[0]:currentEdge[1],node=WORLD.nodes[nodeId];
+   state.player.x=node[0];state.player.y=node[1];
+   const next=chooseEdgeAtNode(nodeId,dx,dy,currentEdge);
+   if(next)currentEdge=next;
+ }
 }
 function draw(){
  const fallback=ctx.createLinearGradient(0,0,0,H);
@@ -118,33 +84,26 @@ function draw(){
 }
 let routeScreenCache=[];
 function rebuildRouteCache(){
- routeScreenCache=WORLD.edges.map(([a,b])=>({
+ routeScreenCache=PATH.validEdges(WORLD).map(([a,b])=>({
    a,b,A:w2s(...WORLD.nodes[a]),B:w2s(...WORLD.nodes[b])
  }));
 }
 function drawGuides(){
   const t=performance.now()/1000;
-  const bridges=new Set(WORLD.bridgeEdges||[]);
-  ctx.save();
-  ctx.lineCap="round";
-  ctx.lineJoin="round";
-  for(const segment of routeScreenCache){
-    const {a,b,A,B}=segment;
-    const key=`${a}-${b}`;
-    const reverse=`${b}-${a}`;
-    const bridge=bridges.has(key)||bridges.has(reverse);
-    ctx.strokeStyle=bridge?"rgba(88,231,255,.88)":"rgba(45,191,255,.58)";
-    ctx.shadowColor=bridge?"#68eaff":"#1eb8ff";
-    ctx.shadowBlur=bridge?12:6;
-    ctx.lineWidth=bridge?4.5:2.5;
-    ctx.setLineDash(bridge?[10,9]:[6,13]);
-    ctx.lineDashOffset=-(t*12)%36;
-    ctx.beginPath();
-    ctx.moveTo(A.x,A.y);
-    ctx.lineTo(B.x,B.y);
+  ctx.save();ctx.lineCap="round";ctx.lineJoin="round";
+  for(const {A,B} of routeScreenCache){
+    ctx.strokeStyle="rgba(126,211,255,.48)";
+    ctx.shadowColor="#52bfff";ctx.shadowBlur=4;ctx.lineWidth=2;
+    ctx.setLineDash([7,12]);ctx.lineDashOffset=-(t*10)%38;
+    ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);ctx.stroke();
+  }
+  if(autoPath.length){
+    ctx.setLineDash([]);ctx.strokeStyle="rgba(255,213,70,.92)";
+    ctx.shadowColor="#ffd447";ctx.shadowBlur=9;ctx.lineWidth=3;
+    ctx.beginPath();const s=w2s(state.player.x,state.player.y);ctx.moveTo(s.x,s.y);
+    for(const point of autoPath){const q=w2s(point.x,point.y);ctx.lineTo(q.x,q.y)}
     ctx.stroke();
   }
-  ctx.setLineDash([]);
   ctx.restore();
 }
 function drawHotspots(){
@@ -152,27 +111,16 @@ function drawHotspots(){
   for(const h of WORLD.hotspots){
     const p=w2s(h.x,h.y);
     const near=Math.hypot(state.player.x-h.x,state.player.y-h.y)<h.r;
-    const pulse=Math.sin(t*3)*2;
+    const pulse=Math.sin(t*3)*1.5;
     ctx.save();
-    ctx.globalAlpha=.96;
-    ctx.fillStyle=near?"rgba(255,207,55,.22)":"rgba(21,192,255,.14)";
-    ctx.strokeStyle=near?"#ffe169":"#4be2ff";
+    ctx.fillStyle=near?"rgba(255,230,96,.20)":"rgba(255,255,255,.035)";
+    ctx.strokeStyle=near?"#ffe878":h.color;
     ctx.shadowColor=ctx.strokeStyle;
-    ctx.shadowBlur=near?22:15;
-    ctx.lineWidth=4;
+    ctx.shadowBlur=near?22:13;
+    ctx.lineWidth=near?4:2.5;
     ctx.beginPath();
-    ctx.ellipse(p.x,p.y,27+pulse,9+pulse*.25,0,0,Math.PI*2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.shadowBlur=0;
-    ctx.font="900 13px 'Noto Sans KR','Malgun Gothic',sans-serif";
-    ctx.textAlign="center";
-    ctx.lineWidth=4;
-    ctx.strokeStyle="#06111b";
-    ctx.strokeText(h.label,p.x,p.y-17);
-    ctx.fillStyle="#fff";
-    ctx.fillText(h.label,p.x,p.y-17);
-    ctx.restore();
+    ctx.ellipse(p.x,p.y,25+pulse,10+pulse*.25,0,0,Math.PI*2);
+    ctx.fill();ctx.stroke();ctx.restore();
   }
 }
 function drawCrops(){
@@ -241,11 +189,20 @@ function update(dt){
     dx=target.x-state.player.x;
     dy=target.y-state.player.y;
 
-    if(Math.hypot(dx,dy)<.55){
+    if(Math.hypot(dx,dy)<.38){
       state.player.x=target.x;
       state.player.y=target.y;
       autoPath.shift();
-      currentEdge=null;
+
+      if(autoPath.length){
+        const next=autoPath[0];
+        const currentNode=PATH.nearestNode(WORLD,state.player.x,state.player.y);
+        const nextNode=PATH.nearestNode(WORLD,next.x,next.y);
+        currentEdge=WORLD.edges.find(([a,b])=>
+          (a===currentNode&&b===nextNode)||(a===nextNode&&b===currentNode)
+        )||currentEdge;
+      }
+
       dx=0;
       dy=0;
     }
@@ -275,7 +232,21 @@ function update(dt){
 }
 
 function getNear(){let best=null,d=Infinity;for(const h of WORLD.hotspots){const n=Math.hypot(state.player.x-h.x,state.player.y-h.y);if(n<h.r&&n<d){best=h;d=n}}return best}
-function startAuto(h){const start=PATH.nearestNode(WORLD,state.player.x,state.player.y);autoPath=PATH.shortestPath(WORLD,start,h.node);autoPath.push({x:h.x,y:h.y});toast(`${h.label} 경로 안내를 시작합니다.`)}
+function startAuto(h){
+ const nearest=PATH.nearestRoad(WORLD,state.player.x,state.player.y);
+ if(!nearest.edge){toast("현재 위치에서 도로를 찾을 수 없습니다.");return}
+ const [a,b]=nearest.edge,A=WORLD.nodes[a],B=WORLD.nodes[b];
+ const pathA=PATH.shortestPath(WORLD,a,h.node),pathB=PATH.shortestPath(WORLD,b,h.node);
+ const costA=Math.hypot(state.player.x-A[0],state.player.y-A[1])+pathA.length;
+ const costB=Math.hypot(state.player.x-B[0],state.player.y-B[1])+pathB.length;
+ const selected=costA<=costB?pathA:pathB,endpoint=costA<=costB?A:B;
+ if(!selected.length){toast(`${h.label}로 이동할 수 있는 도로가 없습니다.`);return}
+ autoPath=[{x:endpoint[0],y:endpoint[1]},...selected.slice(1).map(p=>({x:p.x,y:p.y}))];
+ const last=autoPath[autoPath.length-1];
+ if(!last||Math.hypot(last.x-h.x,last.y-h.y)>.05)autoPath.push({x:h.x,y:h.y});
+ currentEdge=nearest.edge;
+ toast(`${h.label} 경로 안내를 시작합니다.`);
+}
 function interact(){const h=getNear();if(!h){toast("상호작용 원 안으로 이동하세요.");return}if(h.type==="work")doWork(h);if(h.type==="shop")openShop();if(h.type==="farm")openFarm()}
 function doWork(h){const reward=Math.round(h.reward*CHARS[state.character].reward);state.gold+=reward;state.level=1+Math.floor((state.gold+state.harvest*80)/900);state.quests[0]=true;save();toast(`${h.label} 업무 완료 · +${reward}G`)}
 function openShop(){let html="<h2>🌱 씨앗상점</h2><div class='shop-grid'>";for(const[id,s]of Object.entries(SEEDS))html+=`<article class="item shop-item"><h3>${s.emoji} ${s.name}</h3><p><b>${s.price}G</b></p><button type="button" data-buy="${id}">구매</button></article>`;html+="</div>";openModal(html);document.querySelectorAll("[data-buy]").forEach(b=>b.addEventListener("click",()=>buySeed(b.dataset.buy)))}
@@ -286,10 +257,10 @@ async function serverNow(){try{const r=await fetch("./api/time");if(r.ok)return(
 async function plant(i,id){state.inventory[id]--;state.seeds--;state.farm[i]={seed:id,plantedAt:await serverNow(),growMs:SEEDS[id].grow};state.quests[2]=true;closeModal();save()}
 function updateUI(near){ui("goldText").textContent=state.gold.toLocaleString();ui("seedText").textContent=state.seeds;ui("harvestText").textContent=state.harvest;ui("levelText").textContent=state.level;ui("heroName").textContent=CHARS[state.character].name;ui("portrait").src=CHAR_BASE+CHARS[state.character].img;ui("regionText").textContent=near?near.label:(state.player.x>66?"주말농장 지구":"네온 중앙지구");const labels=["회사 본부에서 업무 수행","씨앗상점에서 씨앗 구매","주말농장에 씨앗 심기","다 자란 작물 수확"];ui("questList").innerHTML=labels.map((x,i)=>`<li class="${state.quests[i]?"done":""}">${x} ${state.quests[i]?"1/1":"0/1"}</li>`).join("");ui("inventoryPreview").innerHTML=Object.entries(SEEDS).map(([id,s])=>`<span>${s.emoji}<small>${state.inventory[id]}</small></span>`).join("")}
 function openModal(html){ui("modalBody").innerHTML=html;ui("modal").classList.add("show")}function closeModal(){ui("modal").classList.remove("show")}function toast(t){ui("toast").textContent=t;ui("toast").classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>ui("toast").classList.remove("show"),1700)}
-function save(){localStorage.setItem("komscoCommercialRouteV2",JSON.stringify(state))}
+function save(){localStorage.setItem("komscoExactMapFullscreenRouteV9",JSON.stringify(state))}
 function load(){
  try{
-   const v=JSON.parse(localStorage.getItem("komscoCommercialRouteV2"));
+   const v=JSON.parse(localStorage.getItem("komscoExactMapFullscreenRouteV9"));
    if(v)state=Object.assign(SYS.newState(),v);
  }catch(error){
    console.warn("저장 데이터 복구 실패",error);
