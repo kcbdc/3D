@@ -1,0 +1,11 @@
+{
+  "version": "2026.07.23-final-ui5",
+  "html_included": true,
+  "js_syntax_checked": true,
+  "movement": "connected road graph",
+  "building_collision": true,
+  "water_collision": true,
+  "bridge_only_crossing": true,
+  "ui_rebuilt_to_latest_mockup": true,
+  "font_stack": "Noto Sans KR/Noto Sans/Pretendard/Malgun Gothic"
+}
