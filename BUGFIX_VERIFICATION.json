@@ -1,0 +1,17 @@
+{
+  "version": "2026.07.23-bugfix-final",
+  "html_included": true,
+  "es_module": false,
+  "build_required": false,
+  "embedded_background_characters_removed": true,
+  "embedded_background_hud_removed": true,
+  "npc_rendering_disabled": true,
+  "character_assets": "public/assets/characters_fixed/",
+  "character_opacity": 1,
+  "collision": {
+    "roads_only": true,
+    "buildings_blocked": true,
+    "water_blocked": true,
+    "bridges_walkable": true
+  }
+}

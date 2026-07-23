@@ -2,8 +2,8 @@
 "use strict";
 const ui=id=>document.getElementById(id), canvas=ui("game"), ctx=canvas.getContext("2d",{alpha:false});
 const DPR=Math.min(devicePixelRatio||1,2);
-const CHARACTER_BASE_URL="./public/assets/characters_v2/";
-const CITY_BG_URL="./public/assets/ui/city_neon_world_clean.jpg";
+const CHARACTER_BASE_URL="./public/assets/characters_fixed/";
+const CITY_BG_URL="./public/assets/ui/city_neon_world_final_clean.jpg";
 let W=0,H=0,last=performance.now(),started=false,selected=null,keys={},joy={x:0,y:0},run=false;
 let bgImage=null, rainEnabled=true, userId=localStorage.getItem("komscoUserId")||("guest-"+Math.random().toString(36).slice(2,10));
 localStorage.setItem("komscoUserId",userId);
@@ -21,7 +21,7 @@ const seeds={
 };
 const state={
  gold:300,gems:1250,seeds:0,harvest:0,level:1,character:"hunmin",
- player:{x:48,y:86,speed:22,dir:1},inventory:{carrot:0,tomato:0,strawberry:0},
+ player:{x:48,y:78,speed:22,dir:1},inventory:{carrot:0,tomato:0,strawberry:0},
  equipment:{weapon:"기본 청룡봉",armor:"기본 도포"},quests:[false,false,false,false],
  farm:Array.from({length:8},()=>({seed:null,plantedAt:0,growMs:0})),
  achievements:{firstWork:false,firstHarvest:false},friends:[],rankingScore:0
@@ -54,9 +54,7 @@ const hotspots=[
  {x:84,y:53,r:8,label:"주말농장",type:"farm"}
 ];
 
-const npcs=[
- {x:21,y:78,dx:1,name:"직원A"},{x:44,y:50,dx:-1,name:"직원B"},{x:75,y:63,dx:1,name:"농장관리인"}
-];
+const npcs=[];
 const cars=[
  {x:8,y:77,speed:6,color:"#e93f4c"},{x:67,y:62,speed:7,color:"#f4c32f"},{x:18,y:49,speed:5,color:"#3e8eff"}
 ];
@@ -77,12 +75,18 @@ function drawBackground(){ctx.fillStyle="#020713";ctx.fillRect(0,0,W,H);if(bgIma
 function drawWorldDebug(){if(!location.search.includes("debug=1"))return;ctx.save();ctx.globalAlpha=.25;for(const r of roadSegments){const p=p2s(r.x,r.y);ctx.fillStyle="#36ff72";ctx.fillRect(p.x,p.y,r.w/100*W,r.h/100*H)}for(const r of bridgeSegments){const p=p2s(r.x,r.y);ctx.fillStyle="#ffd83b";ctx.fillRect(p.x,p.y,r.w/100*W,r.h/100*H)}for(const r of waterZones){const p=p2s(r.x,r.y);ctx.fillStyle="#228cff";ctx.fillRect(p.x,p.y,r.w/100*W,r.h/100*H)}ctx.restore();}
 function drawHotspots(){const t=performance.now()/1000;for(const h of hotspots){const p=p2s(h.x,h.y),near=Math.hypot(state.player.x-h.x,state.player.y-h.y)<h.r;ctx.save();ctx.strokeStyle=near?"#ffe16b":"#25caff";ctx.shadowColor=ctx.strokeStyle;ctx.shadowBlur=18;ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(p.x,p.y,18+Math.sin(t*3)*3,7,0,0,Math.PI*2);ctx.stroke();ctx.shadowBlur=0;ctx.font="700 12px sans-serif";ctx.textAlign="center";ctx.fillStyle=near?"#fff1a8":"#d7f7ff";ctx.fillText(h.label,p.x,p.y-15);ctx.restore();}}
 function drawCharacterSprite(img,x,y,scale=1,glow="#1ed2ff"){if(!img)return;const p=p2s(x,y),baseH=(W<700?112:145)*scale,ratio=img.width/img.height,baseW=baseH*ratio;ctx.save();ctx.translate(p.x,p.y);ctx.globalAlpha=.28;ctx.fillStyle="#000";ctx.beginPath();ctx.ellipse(0,5,baseW*.34,baseW*.12,0,0,7);ctx.fill();ctx.globalAlpha=1;ctx.shadowColor=glow;ctx.shadowBlur=16;ctx.drawImage(img,-baseW/2,-baseH,baseW,baseH);ctx.restore();}
-function drawPlayer(){const img=images[state.character];if(!img)return;const moving=isMoving(),bob=moving?Math.sin(performance.now()*.015)*3:0,p=p2s(state.player.x,state.player.y),baseH=(W<700?125:154)*(state.character==="daim"?.94:1),ratio=img.width/img.height,baseW=baseH*ratio;ctx.save();ctx.translate(p.x,p.y);ctx.globalAlpha=.32;ctx.fillStyle="#000";ctx.beginPath();ctx.ellipse(0,7,baseW*.35,baseW*.13,0,0,7);ctx.fill();ctx.globalAlpha=1;ctx.shadowColor="#28d8ff";ctx.shadowBlur=20;ctx.scale(state.player.dir,1);ctx.drawImage(img,-baseW/2,-baseH+bob,baseW,baseH);ctx.restore();}
-function drawNPCs(dt){for(const n of npcs){n.x+=n.dx*dt*3;if(!isWalkable(n.x,n.y)){n.dx*=-1;n.x+=n.dx*dt*6}drawCharacterSprite(images.daim,n.x,n.y,.48,"#ffb33e");}}
+function drawPlayer(){const img=images[state.character];if(!img)return;const moving=isMoving(),bob=moving?Math.sin(performance.now()*.015)*3:0,p=p2s(state.player.x,state.player.y),baseH=(W<700?125:154)*(state.character==="daim"?.94:1),ratio=img.width/img.height,baseW=baseH*ratio;ctx.save();ctx.translate(p.x,p.y);ctx.globalAlpha=.32;ctx.fillStyle="#000";ctx.beginPath();ctx.ellipse(0,7,baseW*.35,baseW*.13,0,0,7);ctx.fill();ctx.globalAlpha=1;ctx.globalCompositeOperation="source-over";ctx.shadowColor="#28d8ff";ctx.shadowBlur=20;ctx.scale(state.player.dir,1);ctx.drawImage(img,-baseW/2,-baseH+bob,baseW,baseH);ctx.restore();}
+function drawNPCs(dt){/* 최종본에서는 불필요 NPC를 렌더링하지 않음 */}
 function drawCars(dt){for(const c of cars){c.x+=c.speed*dt;if(c.x>96)c.x=4;const p=p2s(c.x,c.y);ctx.save();ctx.translate(p.x,p.y);ctx.fillStyle=c.color;ctx.shadowColor=c.color;ctx.shadowBlur=12;ctx.fillRect(-16,-8,32,14);ctx.fillStyle="#bfeaff";ctx.fillRect(-8,-14,16,8);ctx.restore();}}
 function drawRain(){if(!rainEnabled)return;const t=performance.now();ctx.save();ctx.strokeStyle="#9edfff55";ctx.lineWidth=1;for(let i=0;i<80;i++){const x=(i*97+t*.12)%W,y=(i*53+t*.24)%H;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+4,y+14);ctx.stroke()}ctx.restore();}
 function drawFarmGrowth(){const base=p2s(84,53);state.farm.forEach((f,i)=>{if(!f.seed)return;const col=i%4,row=Math.floor(i/4),growth=Math.min(1,(Date.now()-f.plantedAt)/f.growMs);ctx.save();ctx.font=`${15+growth*9}px serif`;ctx.textAlign="center";ctx.shadowColor="#43ff8c";ctx.shadowBlur=10;ctx.fillText(seeds[f.seed].emoji,base.x-55+col*36,base.y+20+row*27);ctx.restore();});}
 function isMoving(){return Math.hypot(joy.x,joy.y)>.05||keys.ArrowUp||keys.ArrowDown||keys.ArrowLeft||keys.ArrowRight||keys.w||keys.a||keys.s||keys.d}
+function ensurePlayerOnRoad(){
+ if(!isWalkable(state.player.x,state.player.y)){
+   state.player.x=48;
+   state.player.y=78;
+ }
+}
 function update(dt){
  if(!started)return;
  let dx=joy.x+(keys.ArrowRight||keys.d?1:0)-(keys.ArrowLeft||keys.a?1:0),dy=joy.y+(keys.ArrowDown||keys.s?1:0)-(keys.ArrowUp||keys.w?1:0);
@@ -121,5 +125,5 @@ const bind=(id,fn)=>{const e=ui(id);if(e)e.onclick=fn};
 addEventListener("keydown",e=>{keys[e.key]=true;if(e.key==="e"||e.key==="Enter")interact()});addEventListener("keyup",e=>keys[e.key]=false);
 const joyEl=ui("joystick"),stick=ui("stick");function joyMove(e){const r=joyEl.getBoundingClientRect(),x=e.clientX-(r.left+r.width/2),y=e.clientY-(r.top+r.height/2),m=Math.min(38,Math.hypot(x,y)),a=Math.atan2(y,x);joy.x=Math.cos(a)*m/38;joy.y=Math.sin(a)*m/38;stick.style.transform=`translate(${joy.x*32}px,${joy.y*32}px)`}joyEl.onpointerdown=e=>{joyEl.setPointerCapture(e.pointerId);joyMove(e)};joyEl.onpointermove=e=>{if(joyEl.hasPointerCapture(e.pointerId))joyMove(e)};joyEl.onpointerup=()=>{joy={x:0,y:0};stick.style.transform=""};ui("runBtn").onpointerdown=()=>run=true;ui("runBtn").onpointerup=()=>run=false;
 bind("interactBtn",interact);bind("bagBtn",openBag);bind("mapBtn",openMap);bind("settingsBtn",openSettings);bind("settingsTopBtn",openSettings);bind("questBtn",()=>ui("questPanel").classList.toggle("closed"));bind("missionTopBtn",()=>ui("questPanel").classList.toggle("closed"));bind("questToggle",()=>ui("questPanel").classList.toggle("closed"));bind("shopBtn",openShop);bind("characterBtn",()=>openGeneric("🛡 캐릭터",`${chars[state.character].name} · ${chars[state.character].role}`));bind("rankingBtn",openRanking);bind("codexBtn",()=>openGeneric("📖 도감",`첫 업무: ${state.achievements.firstWork?"완료":"미완료"} / 첫 수확: ${state.achievements.firstHarvest?"완료":"미완료"}`));bind("mailBtn",openLogin);bind("eventBtn",()=>openGeneric("🎉 이벤트","계절 농장 이벤트 준비 완료"));bind("friendBtn",()=>openGeneric("👥 친구","친구 농장 방문 API 확장 지점"));bind("claimRewardBtn",()=>{if(state.quests.every(Boolean)){state.gold+=500;state.quests=[false,false,false,false];toast("미션 보상 +500G");save()}else toast("모든 미션을 완료하세요")});bind("modalClose",closeModal);ui("modal").onclick=e=>{if(e.target===ui("modal"))closeModal()};bind("startBtn",()=>{state.character=selected;started=true;ui("characterSelect").classList.remove("show");save();toast(`${chars[selected].name}과 함께 입장합니다`)});
-(async()=>{load();buildCharacterCards();await loadAssets();setTimeout(()=>{ui("loading").classList.remove("show");ui("characterSelect").classList.add("show")},300);updateUI();requestAnimationFrame(loop);if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{})})();
+(async()=>{load();ensurePlayerOnRoad();buildCharacterCards();await loadAssets();setTimeout(()=>{ui("loading").classList.remove("show");ui("characterSelect").classList.add("show")},300);updateUI();requestAnimationFrame(loop);if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{})})();
 })();
