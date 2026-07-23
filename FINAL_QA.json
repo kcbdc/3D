@@ -1,11 +1,16 @@
 {
-  "version": "2026.07.23-final-ui5",
-  "html_included": true,
-  "js_syntax_checked": true,
-  "movement": "connected road graph",
-  "building_collision": true,
-  "water_collision": true,
-  "bridge_only_crossing": true,
-  "ui_rebuilt_to_latest_mockup": true,
-  "font_stack": "Noto Sans KR/Noto Sans/Pretendard/Malgun Gothic"
+  "stages": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "index_html": true,
+  "route_visual_equals_collision": true,
+  "dpad": "left-bottom",
+  "cute_character": true,
+  "cloudflare_d1": true,
+  "js_syntax": "passed"
 }
