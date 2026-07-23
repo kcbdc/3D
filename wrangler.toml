@@ -1,0 +1,10 @@
+name = "komsco-neon-farm-city"
+compatibility_date = "2026-07-23"
+pages_build_output_dir = "."
+
+# 아래 database_id는 Cloudflare D1 생성 후 실제 ID로 교체하세요.
+[[d1_databases]]
+binding = "DB"
+database_name = "komsco-3d"
+database_id = "0e2e6b84-54be-4cf2-af3b-e544dfc35a7a"
+preview_database_id = "0e2e6b84-54be-4cf2-af3b-e544dfc35a7a"

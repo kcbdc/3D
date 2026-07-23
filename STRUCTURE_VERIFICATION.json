@@ -1,0 +1,14 @@
+{
+  "version": "2026.07.23-structured-v1",
+  "html_included": true,
+  "standard_source_structure": true,
+  "cloudflare_functions": true,
+  "d1_schema": true,
+  "wrangler_config": true,
+  "d1_binding_name": "DB",
+  "runtime_entry": [
+    "index.html",
+    "game.js"
+  ],
+  "syntax_check": "passed"
+}

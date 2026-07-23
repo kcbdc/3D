@@ -1,0 +1,38 @@
+KOMSCO_NeonCity_Structured/
+├─ index.html
+├─ style.css
+├─ game.js
+├─ wrangler.toml
+├─ schema.sql
+├─ manifest.webmanifest
+├─ sw.js
+├─ _headers
+├─ src/
+│  ├─ config/
+│  │  └─ app-config.js
+│  ├─ engine/
+│  │  ├─ renderer.js
+│  │  ├─ collision.js
+│  │  ├─ pathfinding.js
+│  │  └─ animation.js
+│  ├─ game/
+│  │  ├─ player.js
+│  │  ├─ farm.js
+│  │  ├─ quest.js
+│  │  └─ inventory.js
+│  ├─ ui/
+│  │  ├─ modal.js
+│  │  ├─ minimap.js
+│  │  └─ ui.js
+│  └─ main.js
+├─ functions/
+│  └─ api/
+│     ├─ db.js
+│     ├─ login.js
+│     ├─ save.js
+│     ├─ load.js
+│     ├─ ranking.js
+│     └─ time.js
+├─ public/
+│  └─ assets/
+└─ docs/
