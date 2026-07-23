@@ -192,6 +192,88 @@ function drawCrops(){
     ctx.restore();
   });
 }
+
+function isMoving(){
+  return Boolean(
+    dpad.up||dpad.down||dpad.left||dpad.right||
+    autoPath.length||
+    keys.ArrowUp||keys.ArrowDown||keys.ArrowLeft||keys.ArrowRight||
+    keys.w||keys.a||keys.s||keys.d
+  );
+}
+
+function drawPlayer(){
+  const im=images[state.character];
+  if(!im)return;
+
+  const p=w2s(state.player.x,state.player.y);
+  const height=Math.max(82,Math.min(145,W*.085));
+  const width=height*(im.naturalWidth||im.width)/(im.naturalHeight||im.height);
+  const bob=isMoving()?Math.sin(performance.now()*.015)*3:0;
+  const direction=Number.isFinite(state.player.dirLerp)
+    ? state.player.dirLerp
+    : (state.player.dir||1);
+
+  ctx.save();
+  ctx.translate(p.x,p.y);
+
+  ctx.globalAlpha=.28;
+  ctx.fillStyle="#000";
+  ctx.beginPath();
+  ctx.ellipse(0,5,width*.32,width*.11,0,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.globalAlpha=1;
+  ctx.shadowColor="#42d8ff";
+  ctx.shadowBlur=15;
+  ctx.scale(direction,1);
+  ctx.drawImage(im,-width/2,-height+bob,width,height);
+  ctx.restore();
+}
+
+function update(dt){
+  if(!started)return;
+
+  let dx=0,dy=0;
+
+  if(autoPath.length){
+    const target=autoPath[0];
+    dx=target.x-state.player.x;
+    dy=target.y-state.player.y;
+
+    if(Math.hypot(dx,dy)<.55){
+      state.player.x=target.x;
+      state.player.y=target.y;
+      autoPath.shift();
+      currentEdge=null;
+      dx=0;
+      dy=0;
+    }
+  }else{
+    dx=(dpad.right?1:0)-(dpad.left?1:0)
+      +(keys.ArrowRight||keys.d?1:0)
+      -(keys.ArrowLeft||keys.a?1:0);
+    dy=(dpad.down?1:0)-(dpad.up?1:0)
+      +(keys.ArrowDown||keys.s?1:0)
+      -(keys.ArrowUp||keys.w?1:0);
+  }
+
+  moveOnRoute(dx,dy,dt);
+
+  const near=getNear();
+  const hint=ui("interactionHint");
+  if(hint){
+    hint.classList.toggle("show",Boolean(near));
+    hint.textContent=near?`${near.label} · 상호작용`:"";
+  }
+
+  const now=performance.now();
+  if(now-lastUiUpdate>120){
+    updateUI(near);
+    lastUiUpdate=now;
+  }
+}
+
 function getNear(){let best=null,d=Infinity;for(const h of WORLD.hotspots){const n=Math.hypot(state.player.x-h.x,state.player.y-h.y);if(n<h.r&&n<d){best=h;d=n}}return best}
 function startAuto(h){const start=PATH.nearestNode(WORLD,state.player.x,state.player.y);autoPath=PATH.shortestPath(WORLD,start,h.node);autoPath.push({x:h.x,y:h.y});toast(`${h.label} 경로 안내를 시작합니다.`)}
 function interact(){const h=getNear();if(!h){toast("상호작용 원 안으로 이동하세요.");return}if(h.type==="work")doWork(h);if(h.type==="shop")openShop();if(h.type==="farm")openFarm()}
@@ -205,9 +287,34 @@ async function plant(i,id){state.inventory[id]--;state.seeds--;state.farm[i]={se
 function updateUI(near){ui("goldText").textContent=state.gold.toLocaleString();ui("seedText").textContent=state.seeds;ui("harvestText").textContent=state.harvest;ui("levelText").textContent=state.level;ui("heroName").textContent=CHARS[state.character].name;ui("portrait").src=CHAR_BASE+CHARS[state.character].img;ui("regionText").textContent=near?near.label:(state.player.x>66?"주말농장 지구":"네온 중앙지구");const labels=["회사 본부에서 업무 수행","씨앗상점에서 씨앗 구매","주말농장에 씨앗 심기","다 자란 작물 수확"];ui("questList").innerHTML=labels.map((x,i)=>`<li class="${state.quests[i]?"done":""}">${x} ${state.quests[i]?"1/1":"0/1"}</li>`).join("");ui("inventoryPreview").innerHTML=Object.entries(SEEDS).map(([id,s])=>`<span>${s.emoji}<small>${state.inventory[id]}</small></span>`).join("")}
 function openModal(html){ui("modalBody").innerHTML=html;ui("modal").classList.add("show")}function closeModal(){ui("modal").classList.remove("show")}function toast(t){ui("toast").textContent=t;ui("toast").classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>ui("toast").classList.remove("show"),1700)}
 function save(){localStorage.setItem("komscoCommercialRouteV2",JSON.stringify(state))}
-function load(){try{const v=JSON.parse(localStorage.getItem("komscoCommercialRouteV2"));if(v)state=Object.assign(SYS.newState(),v)}catch{}const q=PATH.nearestRoad(WORLD,state.player.x,state.player.y);state.player.x=q.x;state.player.y=q.y}
+function load(){
+ try{
+   const v=JSON.parse(localStorage.getItem("komscoCommercialRouteV2"));
+   if(v)state=Object.assign(SYS.newState(),v);
+ }catch(error){
+   console.warn("저장 데이터 복구 실패",error);
+   state=SYS.newState();
+ }
+ if(!state.player||!Number.isFinite(state.player.x)||!Number.isFinite(state.player.y)){
+   state=SYS.newState();
+ }
+ const q=PATH.nearestRoad(WORLD,state.player.x,state.player.y);
+ state.player.x=q.x;
+ state.player.y=q.y;
+ state.player.dir=state.player.dir||1;
+ state.player.dirLerp=state.player.dir;
+}
 function buildCards(){const desc={hunmin:"업무와 농장 성장이 균형 잡힌 전략가",daim:"업무 골드 보상이 20% 증가하는 탐색관",sunsik:"이동 속도가 15% 빠른 호위무사"};ui("characterCards").innerHTML=Object.entries(CHARS).map(([id,c])=>`<article class="character-card" data-char="${id}"><img src="${CHAR_BASE+c.img}" alt="${c.name}"><div class=card-copy><h3>${c.name}</h3><b>${c.role}</b><p>${desc[id]}</p></div></article>`).join("");document.querySelectorAll("[data-char]").forEach(card=>card.addEventListener("click",()=>{selected=card.dataset.char;document.querySelectorAll("[data-char]").forEach(x=>x.classList.toggle("selected",x===card));ui("startBtn").disabled=false}))}
-function bindDpad(id,key){const el=ui(id),down=e=>{e.preventDefault();autoPath=[];dpad[key]=true;el.classList.add("pressed");el.setPointerCapture?.(e.pointerId)},up=e=>{e?.preventDefault?.();dpad[key]=false;el.classList.remove("pressed")};el.addEventListener("pointerdown",down);el.addEventListener("pointerup",up);el.addEventListener("pointercancel",up);el.addEventListener("pointerleave",up)}
+function bindDpad(id,key){
+ const el=ui(id);
+ if(!el){console.warn(`이동 버튼 누락: ${id}`);return;}
+ const down=e=>{e.preventDefault();autoPath=[];dpad[key]=true;el.classList.add("pressed");el.setPointerCapture?.(e.pointerId)};
+ const up=e=>{e?.preventDefault?.();dpad[key]=false;el.classList.remove("pressed")};
+ el.addEventListener("pointerdown",down);
+ el.addEventListener("pointerup",up);
+ el.addEventListener("pointercancel",up);
+ el.addEventListener("pointerleave",up);
+}
 addEventListener("resize",resize);addEventListener("keydown",e=>{keys[e.key]=true;if(e.key==="e"||e.key==="Enter")interact()});addEventListener("keyup",e=>keys[e.key]=false);
 bindDpad("moveUp","up");bindDpad("moveDown","down");bindDpad("moveLeft","left");bindDpad("moveRight","right");
 ui("runBtn").addEventListener("pointerdown",()=>run=true);ui("runBtn").addEventListener("pointerup",()=>run=false);ui("interactBtn").addEventListener("click",interact);ui("autoBtn").addEventListener("click",()=>{const h=WORLD.hotspots.reduce((a,b)=>Math.hypot(state.player.x-a.x,state.player.y-a.y)<Math.hypot(state.player.x-b.x,state.player.y-b.y)?a:b);startAuto(h)});
@@ -216,10 +323,12 @@ ui("menuBtn").addEventListener("click",()=>{ui("utilityDrawer").classList.toggle
 ui("questCollapse").addEventListener("click",()=>ui("questPanel").classList.toggle("collapsed"));ui("claimRewardBtn").addEventListener("click",()=>{if(state.quests.every(Boolean)){state.gold+=500;state.quests=[false,false,false,false];save();toast("일일 보상 +500G")}else toast("모든 미션을 완료하세요.")});ui("modalClose").addEventListener("click",closeModal);ui("modal").addEventListener("click",e=>{if(e.target===ui("modal"))closeModal()});
 ui("startBtn").addEventListener("click",async()=>{state.character=selected;started=true;ui("characterSelect").classList.remove("show");await KOMSCO.Orientation.lockLandscape();save();toast(`${CHARS[selected].name}과 함께 시작합니다.`)});
 
-function showFatal(error){
- console.error(error);
+function showFatal(error,source="",line=0,column=0){
+ console.error("[KOMSCO Runtime Error]",error,source,line,column);
  const panel=ui("fatalError"),message=ui("fatalMessage");
- if(message)message.textContent=String(error?.message||error||"알 수 없는 오류");
+ const detail=error?.stack||error?.message||String(error||"알 수 없는 오류");
+ const location=source?`\n${source}:${line}:${column}`:"";
+ if(message)message.textContent=`${detail}${location}`;
  panel?.classList.add("show");
  ui("loading")?.classList.remove("show");
 }
@@ -228,7 +337,7 @@ ui("fatalReload")?.addEventListener("click",()=>{
    navigator.serviceWorker.getRegistrations().then(rs=>Promise.all(rs.map(r=>r.unregister()))).finally(()=>location.reload());
  }else location.reload();
 });
-window.addEventListener("error",e=>showFatal(e.error||e.message));
+window.addEventListener("error",e=>showFatal(e.error||e.message,e.filename||"",e.lineno||0,e.colno||0));
 window.addEventListener("unhandledrejection",e=>showFatal(e.reason));
 
 function loop(now){
