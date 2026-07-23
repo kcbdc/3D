@@ -1,16 +1,54 @@
 {
-  "stages": [
-    1,
-    2,
-    3,
-    4,
-    5,
-    6
+  "version": "2026.07.23-daynight-landscape-v1",
+  "html_included": true,
+  "character_assets": [
+    "hunmin(1).png",
+    "daim(1).png",
+    "sunsik(1).png"
   ],
-  "index_html": true,
-  "route_visual_equals_collision": true,
-  "dpad": "left-bottom",
-  "cute_character": true,
-  "cloudflare_d1": true,
-  "js_syntax": "passed"
+  "backgrounds": {
+    "day": "world_final_day.jpg",
+    "night": "world_final.jpg",
+    "day_hours": "06:00-17:59",
+    "night_hours": "18:00-05:59"
+  },
+  "selection_screen": "image(69).png",
+  "route_single_source": true,
+  "visible_route_matches_collision": true,
+  "quest_only_persistent_popup": true,
+  "landscape": {
+    "manifest": true,
+    "screen_orientation_api": true,
+    "portrait_css_rotation": true
+  },
+  "character_alpha": {
+    "hunmin": {
+      "size": [
+        517,
+        483
+      ],
+      "alpha_min": 0,
+      "alpha_max": 255,
+      "transparent": true
+    },
+    "daim": {
+      "size": [
+        479,
+        521
+      ],
+      "alpha_min": 0,
+      "alpha_max": 255,
+      "transparent": true
+    },
+    "sunsik": {
+      "size": [
+        434,
+        575
+      ],
+      "alpha_min": 0,
+      "alpha_max": 255,
+      "transparent": true
+    }
+  },
+  "build_required": false
 }

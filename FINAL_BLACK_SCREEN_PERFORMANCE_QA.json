@@ -1,0 +1,28 @@
+{
+  "version": "black-screen-perf-v5",
+  "black_screen_prevention": {
+    "stable_canvas_dimensions": true,
+    "no_css_shell_rotation": true,
+    "fallback_background": true,
+    "asset_validation": true,
+    "fatal_error_ui": true,
+    "global_error_handlers": true
+  },
+  "performance": {
+    "mobile_dpr_cap": 1.35,
+    "desktop_dpr_cap": 1.75,
+    "route_screen_cache": true,
+    "ui_update_throttle_ms": 120,
+    "pause_when_hidden": true,
+    "async_image_decoding": true,
+    "network_first_runtime_assets": true
+  },
+  "landscape": {
+    "manifest_orientation": true,
+    "screen_orientation_api": true,
+    "portrait_notice": true,
+    "unsafe_css_rotation_removed": true
+  },
+  "javascript_syntax": "passed",
+  "html_included": true
+}

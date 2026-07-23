@@ -1,1 +1,267 @@
-(()=>{"use strict";const ui=id=>document.getElementById(id),cv=ui("game"),c=cv.getContext("2d",{alpha:false}),D=Math.min(devicePixelRatio||1,2),BG="./public/assets/ui/world_final.jpg",CP="./public/assets/characters_final/";let W=0,H=0,bg=null,rect={x:0,y:0,w:1,h:1},started=false,selected=null,last=performance.now(),auto=[],keys={},pad={up:0,down:0,left:0,right:0},imgs={};const chars={hunmin:{name:"훈민",role:"전략가",img:"hunmin.png",speed:1,reward:1},daim:{name:"다임",role:"정보 탐색관",img:"daim.png",speed:1,reward:1.2},sunsik:{name:"순식",role:"호위무사",img:"sunsik.png",speed:1.15,reward:1}},seeds={carrot:{name:"당근",price:60,grow:45000,reward:120,emoji:"🥕"},tomato:{name:"토마토",price:90,grow:70000,reward:190,emoji:"🍅"},strawberry:{name:"딸기",price:130,grow:100000,reward:300,emoji:"🍓"}},state={gold:300,gems:1250,seeds:0,harvest:0,level:1,character:"hunmin",player:{x:42,y:76,dir:1,speed:17},inventory:{carrot:0,tomato:0,strawberry:0},quests:[0,0,0,0],farm:Array.from({length:8},()=>({seed:null,plantedAt:0,growMs:0}))};const N={A:[10,79],B:[22,70],C:[36,74],D:[49,66],E:[61,56],F:[75,49],G:[89,44],H:[15,58],I:[29,52],J:[43,53],K:[56,46],L:[70,37],M:[84,30],N:[24,37],O:[39,33],P:[54,30],Q:[68,26],R:[49,81],S:[63,76],T:[78,69],U:[90,60]},E=[["A","B"],["B","C"],["C","D"],["D","E"],["E","F"],["F","G"],["B","H"],["H","I"],["I","J"],["J","K"],["K","L"],["L","M"],["I","N"],["N","O"],["O","P"],["P","Q"],["K","P"],["C","R"],["R","S"],["S","T"],["T","U"],["U","G"],["D","R"],["E","S"],["F","T"]],bridges=new Set(["E-F","F-G","R-S","S-T"]),hot=[{node:"N",x:24,y:42,r:6,label:"본사",type:"work",reward:150},{node:"O",x:41,y:38,r:6,label:"화폐본부",type:"work",reward:130},{node:"Q",x:68,y:34,r:6,label:"제지본부",type:"work",reward:120},{node:"L",x:61,y:50,r:6,label:"ID본부",type:"work",reward:140},{node:"J",x:42,y:58,r:6,label:"씨앗상점",type:"shop"},{node:"U",x:87,y:57,r:8,label:"주말농장",type:"farm"}];function resize(){W=innerWidth;H=innerHeight;cv.width=W*D;cv.height=H*D;cv.style.width=W+"px";cv.style.height=H+"px";c.setTransform(D,0,0,D,0,0);if(bg){const ir=bg.width/bg.height,vr=W/H;if(ir>vr)rect={h:H,w:H*ir,x:(W-H*ir)/2,y:0};else rect={w:W,h:W/ir,x:0,y:(H-W/ir)/2}}}addEventListener("resize",resize);resize();const ws=(x,y)=>({x:rect.x+x/100*rect.w,y:rect.y+y/100*rect.h}),ek=(a,b)=>a+"-"+b;function seg(px,py,A,B){let vx=B[0]-A[0],vy=B[1]-A[1],d=vx*vx+vy*vy,t=d?Math.max(0,Math.min(1,((px-A[0])*vx+(py-A[1])*vy)/d)):0,qx=A[0]+t*vx,qy=A[1]+t*vy;return{x:qx,y:qy,d:Math.hypot(px-qx,py-qy)}}function nearest(x,y){let z={d:999};for(const [a,b]of E){let q=seg(x,y,N[a],N[b]);if(q.d<z.d)z={...q,a,b}}return z}function drawRoute(){let t=performance.now()/1000;c.save();c.lineCap="round";for(const[a,b]of E){let A=ws(...N[a]),B=ws(...N[b]),br=bridges.has(ek(a,b));c.strokeStyle=br?"#74efff":"#29c9ffbb";c.shadowColor="#29cfff";c.shadowBlur=br?20:12;c.lineWidth=br?6:4;c.setLineDash([10,10]);c.lineDashOffset=-t*20;c.beginPath();c.moveTo(A.x,A.y);c.lineTo(B.x,B.y);c.stroke();let vx=B.x-A.x,vy=B.y-A.y,len=Math.hypot(vx,vy),n=Math.floor(len/170);for(let i=1;i<=n;i++){let q=i/(n+1),x=A.x+vx*q,y=A.y+vy*q;c.save();c.translate(x,y);c.rotate(Math.atan2(vy,vx));c.fillStyle="#d8fbff";c.beginPath();c.moveTo(9,0);c.lineTo(-6,-5);c.lineTo(-6,5);c.closePath();c.fill();c.restore()}}c.restore()}function draw(){c.fillStyle="#020712";c.fillRect(0,0,W,H);if(bg)c.drawImage(bg,rect.x,rect.y,rect.w,rect.h);drawRoute();for(const h of hot){let p=ws(h.x,h.y),near=Math.hypot(state.player.x-h.x,state.player.y-h.y)<h.r;c.save();c.strokeStyle=near?"#ffe46c":"#2ed8ff";c.shadowColor=c.strokeStyle;c.shadowBlur=16;c.beginPath();c.ellipse(p.x,p.y,18,7,0,0,7);c.stroke();c.fillStyle="#fff";c.font="700 12px sans-serif";c.textAlign="center";c.fillText(h.label,p.x,p.y-14);c.restore()}drawPlayer()}function drawPlayer(){let im=imgs[state.character];if(!im)return;let p=ws(state.player.x,state.player.y),h=W<800?105:135,w=h*im.width/im.height;c.save();c.translate(p.x,p.y);c.globalAlpha=.25;c.fillStyle="#000";c.beginPath();c.ellipse(0,6,w*.35,w*.12,0,0,7);c.fill();c.globalAlpha=1;c.shadowColor="#31d9ff";c.shadowBlur=14;c.scale(state.player.dir,1);c.drawImage(im,-w/2,-h,w,h);c.restore()}function nearestNode(x,y){let id,d=999;for(const[k,p]of Object.entries(N)){let q=Math.hypot(x-p[0],y-p[1]);if(q<d){d=q;id=k}}return id}function path(s,e){let A={};Object.keys(N).forEach(k=>A[k]=[]);E.forEach(([a,b])=>{A[a].push(b);A[b].push(a)});let q=[s],pr={[s]:null};while(q.length){let n=q.shift();if(n==e)break;for(const v of A[n])if(!(v in pr)){pr[v]=n;q.push(v)}}if(!(e in pr))return[];let r=[];for(let x=e;x;x=pr[x])r.unshift({x:N[x][0],y:N[x][1]});return r}function update(dt){if(!started)return;let dx=0,dy=0;if(auto.length){dx=auto[0].x-state.player.x;dy=auto[0].y-state.player.y;if(Math.hypot(dx,dy)<.7){auto.shift();return}}else{dx=(pad.right?1:0)-(pad.left?1:0)+(keys.ArrowRight||keys.d?1:0)-(keys.ArrowLeft||keys.a?1:0);dy=(pad.down?1:0)-(pad.up?1:0)+(keys.ArrowDown||keys.s?1:0)-(keys.ArrowUp||keys.w?1:0)}let l=Math.hypot(dx,dy);if(l>.01){dx/=l;dy/=l;state.player.dir=dx<0?-1:1;let sp=state.player.speed*chars[state.character].speed,tx=state.player.x+dx*sp*dt,ty=state.player.y+dy*sp*dt,q=nearest(tx,ty);if(q.d<5.2){state.player.x=q.x;state.player.y=q.y}else{let cur=nearest(state.player.x,state.player.y);state.player.x=cur.x;state.player.y=cur.y}}let n=getNear();ui("interactionHint").classList.toggle("show",!!n);ui("interactionHint").textContent=n?n.label+" · 상호작용":"";updateUI(n)}function getNear(){let z=null,d=999;for(const h of hot){let q=Math.hypot(state.player.x-h.x,state.player.y-h.y);if(q<h.r&&q<d){z=h;d=q}}return z}function interact(){let h=getNear();if(!h)return toast("입구 표시 가까이 이동하세요.");if(h.type=="work"){let r=Math.round(h.reward*chars[state.character].reward);state.gold+=r;state.quests[0]=1;toast(h.label+" 업무 완료 +"+r+"G");save()}else if(h.type=="shop")shop();else farm()}function shop(){let h='<h2>씨앗상점</h2><div class="shop-grid">';for(const[id,s]of Object.entries(seeds))h+=`<div class=item><h3>${s.emoji} ${s.name}</h3><p>${s.price}G</p><button data-buy=${id}>구매</button></div>`;open(h+'</div>');document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>{let s=seeds[b.dataset.buy];if(state.gold<s.price)return toast('골드 부족');state.gold-=s.price;state.inventory[b.dataset.buy]++;state.seeds++;state.quests[1]=1;save();shop()})}function farm(){let h='<h2>주말농장</h2><div class="farm-grid">';state.farm.forEach((f,i)=>h+=`<div class=item><h3>밭 ${i+1}</h3><button data-plot=${i}>${f.seed?'확인':'심기'}</button></div>`);open(h+'</div>');document.querySelectorAll('[data-plot]').forEach(b=>b.onclick=()=>plot(+b.dataset.plot))}function plot(i){let f=state.farm[i];if(!f.seed){let a=Object.keys(seeds).filter(k=>state.inventory[k]);if(!a.length)return toast('씨앗을 구매하세요');let h='<h2>씨앗 선택</h2>';a.forEach(id=>h+=`<button data-plant=${id}>${seeds[id].emoji}${seeds[id].name}</button>`);open(h);document.querySelectorAll('[data-plant]').forEach(b=>b.onclick=()=>{let id=b.dataset.plant;state.inventory[id]--;state.seeds--;state.farm[i]={seed:id,plantedAt:Date.now(),growMs:seeds[id].grow};state.quests[2]=1;close();save()})}else if(Date.now()-f.plantedAt>=f.growMs){let s=seeds[f.seed];state.gold+=s.reward;state.harvest++;state.quests[3]=1;state.farm[i]={seed:null,plantedAt:0,growMs:0};toast('수확 완료');save();farm()}else toast(Math.ceil((f.growMs-Date.now()+f.plantedAt)/1000)+'초 남음')}function updateUI(n){ui('goldText').textContent=state.gold.toLocaleString();ui('gemText').textContent=state.gems.toLocaleString();ui('seedText').textContent=state.seeds;ui('harvestText').textContent=state.harvest;ui('levelText').textContent=state.level;ui('heroName').textContent=chars[state.character].name;ui('profilePortrait').src=CP+chars[state.character].img;let z=n?n.label:(state.player.x>70?'주말농장 지구':'네온 중앙지구');ui('zoneText').textContent=z;ui('regionName').textContent=z;ui('questList').innerHTML=['회사 본부에서 업무 수행','씨앗상점에서 씨앗 구매','주말농장 밭에 씨앗 심기','다 자란 작물 수확'].map((x,i)=>`<li class=${state.quests[i]?'done':''}>${x} ${state.quests[i]?'1/1':'0/1'}</li>`).join('');ui('quickInventory').textContent=`🥕${state.inventory.carrot}　🍅${state.inventory.tomato}　🍓${state.inventory.strawberry}`}function open(h){ui('modalBody').innerHTML=h;ui('modal').classList.add('show')}function close(){ui('modal').classList.remove('show')}function toast(x){ui('toast').textContent=x;ui('toast').classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>ui('toast').classList.remove('show'),1600)}function save(){localStorage.setItem('komscoStage16',JSON.stringify(state));fetch('./api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:'guest',gameState:state})}).catch(()=>{})}function load(){try{Object.assign(state,JSON.parse(localStorage.getItem('komscoStage16'))||{})}catch{}let q=nearest(state.player.x,state.player.y);state.player.x=q.x;state.player.y=q.y}function image(src){return new Promise(r=>{let i=new Image;i.onload=()=>r(i);i.onerror=()=>r(null);i.src=src})}function cards(){ui('characterCards').innerHTML=Object.entries(chars).map(([id,x])=>`<article class="card panel" data-id=${id}><img src=${CP+x.img}><h3>${x.name}</h3><p>${x.role}</p></article>`).join('');document.querySelectorAll('.card').forEach(e=>e.onclick=()=>{selected=e.dataset.id;document.querySelectorAll('.card').forEach(x=>x.classList.toggle('selected',x==e));ui('startBtn').disabled=false})}function bind(id,k){let b=ui(id),on=e=>{e.preventDefault();auto=[];pad[k]=1;b.classList.add('pressed')},off=e=>{e.preventDefault();pad[k]=0;b.classList.remove('pressed')};b.onpointerdown=on;b.onpointerup=off;b.onpointercancel=off;b.onpointerleave=off}bind('moveUp','up');bind('moveDown','down');bind('moveLeft','left');bind('moveRight','right');addEventListener('keydown',e=>keys[e.key]=1);addEventListener('keyup',e=>keys[e.key]=0);ui('startBtn').onclick=()=>{state.character=selected;started=true;ui('characterSelect').classList.remove('show');save()};ui('interactBtn').onclick=interact;ui('shopBtn').onclick=shop;ui('shopBtn2').onclick=shop;ui('bagBtn').onclick=()=>open('<h2>가방</h2><p>'+ui('quickInventory').textContent+'</p>');ui('mapBtn').onclick=()=>open('<h2>지도</h2><img style="width:100%" src="./public/assets/ui/minimap_final.jpg"><p>청색 유도선과 캐릭터 이동 경로는 동일합니다.</p>');ui('questBtn').onclick=()=>ui('questPanel').classList.toggle('hide');ui('characterBtn').onclick=()=>open('<h2>캐릭터</h2><p>'+chars[state.character].name+'</p>');ui('friendBtn').onclick=()=>open('<h2>친구</h2><p>친구 농장 준비 중</p>');ui('rankingBtn').onclick=()=>open('<h2>랭킹</h2><p>점수 '+(state.gold+state.harvest*100)+'</p>');ui('codexBtn').onclick=()=>open('<h2>도감</h2><p>수확한 작물을 기록합니다.</p>');ui('settingsBtn').onclick=()=>open('<h2>설정</h2><p>그래픽 및 사운드</p>');ui('autoBtn').onclick=()=>{let h=hot.reduce((a,b)=>Math.hypot(state.player.x-a.x,state.player.y-a.y)<Math.hypot(state.player.x-b.x,state.player.y-b.y)?a:b);auto=path(nearestNode(state.player.x,state.player.y),h.node);auto.push({x:h.x,y:h.y});toast(h.label+' 자동 이동')};ui('claimRewardBtn').onclick=()=>{if(state.quests.every(Boolean)){state.gold+=500;state.quests=[0,0,0,0];save();toast('보상 +500G')}else toast('퀘스트를 완료하세요')};ui('modalClose').onclick=close;ui('modal').onclick=e=>{if(e.target==ui('modal'))close()};function loop(t){let dt=Math.min(.04,(t-last)/1000);last=t;update(dt);draw();requestAnimationFrame(loop)}(async()=>{load();cards();bg=await image(BG);resize();let n=0;for(const[id,x]of Object.entries(chars)){imgs[id]=await image(CP+x.img);ui('loadBar').style.width=(++n/3*100)+'%'}ui('loading').classList.remove('show');ui('characterSelect').classList.add('show');updateUI();requestAnimationFrame(loop);if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{})})();})();
+(() => {
+"use strict";
+const ui=id=>document.getElementById(id),canvas=ui("game");
+const ctx=canvas?.getContext("2d",{alpha:false,desynchronized:true})||canvas?.getContext("2d");
+if(!canvas||!ctx)throw new Error("Canvas 2D를 초기화할 수 없습니다.");
+const WORLD=KOMSCO.WORLD,PATH=KOMSCO.PathEngine,SYS=KOMSCO.GameSystems;
+const CHARS=SYS.characters,SEEDS=SYS.seeds,CHAR_BASE="./public/assets/characters/";
+const DAY="./public/assets/world/world_final_day.jpg",NIGHT="./public/assets/world/world_final.jpg";
+const DPR=Math.min(devicePixelRatio||1, innerWidth<900?1.35:1.75);
+let W=0,H=0,bgRect={x:0,y:0,w:1,h:1},bgDay,bgNight,last=performance.now(),selected=null,started=false,run=false,autoPath=[],currentEdge=null,lastUiUpdate=0;
+const images={},keys={},dpad={up:false,down:false,left:false,right:false};let state=SYS.newState();
+
+const isDay=()=>{const h=new Date().getHours();return h>=6&&h<18};
+const activeBg=()=>isDay()?bgDay:bgNight;
+function resize(){
+ const shell=ui("gameShell");
+ const r=shell.getBoundingClientRect();
+ W=Math.max(320,Math.round(r.width||innerWidth||1280));
+ H=Math.max(180,Math.round(r.height||innerHeight||720));
+ canvas.width=Math.max(1,Math.round(W*DPR));
+ canvas.height=Math.max(1,Math.round(H*DPR));canvas.style.width=W+"px";canvas.style.height=H+"px";ctx.setTransform(DPR,0,0,DPR,0,0);updateBgRect();rebuildRouteCache()}
+function updateBgRect(){const im=activeBg();if(!im){bgRect={x:0,y:0,w:W,h:H};return}const ir=im.width/im.height,vr=W/H;if(ir>vr){bgRect.h=H;bgRect.w=H*ir;bgRect.x=(W-bgRect.w)/2;bgRect.y=0}else{bgRect.w=W;bgRect.h=W/ir;bgRect.x=0;bgRect.y=(H-bgRect.h)/2}}
+const w2s=(x,y)=>({x:bgRect.x+x/100*bgRect.w,y:bgRect.y+y/100*bgRect.h});
+function loadImage(src){
+ return new Promise(resolve=>{
+   const im=new Image();
+   im.decoding="async";
+   im.onload=()=>resolve(im);
+   im.onerror=()=>resolve(null);
+   im.src=src;
+ });
+}
+function edgeProjection(edge,x,y){const [a,b]=edge,A=WORLD.nodes[a],B=WORLD.nodes[b],vx=B[0]-A[0],vy=B[1]-A[1],den=vx*vx+vy*vy,t=den?Math.max(0,Math.min(1,((x-A[0])*vx+(y-A[1])*vy)/den)):0;return{x:A[0]+t*vx,y:A[1]+t*vy,t,vx,vy,length:Math.sqrt(den)}}
+function nearestEdges(x,y,limit=4){return WORLD.edges.map(e=>{const q=edgeProjection(e,x,y);return{edge:e,...q,d:Math.hypot(x-q.x,y-q.y)}}).sort((a,b)=>a.d-b.d).slice(0,limit)}
+function connectedEdges(nodeId){
+  return WORLD.edges.filter(([a,b])=>a===nodeId||b===nodeId);
+}
+function normalizedEdge(edge){
+  return edge?edge.join("|"):"";
+}
+function edgeInfo(edge,x=state.player.x,y=state.player.y){
+  const q=edgeProjection(edge,x,y);
+  const len=Math.hypot(q.vx,q.vy)||1;
+  return {...q,tx:q.vx/len,ty:q.vy/len};
+}
+function chooseInitialEdge(dx,dy){
+  const candidates=nearestEdges(state.player.x,state.player.y,8);
+  let best=null,bestScore=-Infinity;
+  for(const c of candidates){
+    if(c.d>WORLD.roadWidth*1.5)continue;
+    const len=Math.hypot(c.vx,c.vy)||1;
+    const tx=c.vx/len,ty=c.vy/len;
+    const align=Math.abs(dx*tx+dy*ty);
+    const score=align*2+(1-c.d/(WORLD.roadWidth*1.5));
+    if(score>bestScore){bestScore=score;best=c}
+  }
+  return best;
+}
+function selectNextEdge(nodeId,dx,dy,previousEdge){
+  const candidates=connectedEdges(nodeId);
+  let best=null,bestScore=-Infinity;
+  for(const edge of candidates){
+    const other=edge[0]===nodeId?edge[1]:edge[0];
+    const p=WORLD.nodes[other],n=WORLD.nodes[nodeId];
+    const vx=p[0]-n[0],vy=p[1]-n[1],len=Math.hypot(vx,vy)||1;
+    let score=dx*(vx/len)+dy*(vy/len);
+    if(previousEdge&&normalizedEdge(edge)===normalizedEdge(previousEdge))score-=.15;
+    if(score>bestScore){bestScore=score;best=edge}
+  }
+  return bestScore>-.25?best:null;
+}
+function moveOnRoute(dx,dy,dt){
+  const mag=Math.hypot(dx,dy);
+  if(mag<.05)return;
+  dx/=mag;dy/=mag;
+
+  if(!currentEdge){
+    const initial=chooseInitialEdge(dx,dy);
+    if(!initial)return;
+    currentEdge=initial.edge;
+  }
+
+  let info=edgeInfo(currentEdge);
+  const forwardDot=dx*info.tx+dy*info.ty;
+  const sign=forwardDot>=0?1:-1;
+  const speed=state.player.speed*CHARS[state.character].speed*(run||keys.Shift?1.45:1);
+  const projected=edgeProjection(
+    currentEdge,
+    info.x+info.tx*sign*speed*dt,
+    info.y+info.ty*sign*speed*dt
+  );
+
+  state.player.x=projected.x;
+  state.player.y=projected.y;
+
+  const desiredDir=info.tx*sign<0?-1:1;
+  state.player.dirLerp=(state.player.dirLerp??state.player.dir??1)+(desiredDir-(state.player.dirLerp??state.player.dir??1))*Math.min(1,dt*8);
+  state.player.dir=state.player.dirLerp<0?-1:1;
+
+  const atStart=projected.t<=.012;
+  const atEnd=projected.t>=.988;
+  if(atStart||atEnd){
+    const nodeId=atStart?currentEdge[0]:currentEdge[1];
+    const node=WORLD.nodes[nodeId];
+    state.player.x=node[0];
+    state.player.y=node[1];
+    const next=selectNextEdge(nodeId,dx,dy,currentEdge);
+    if(next)currentEdge=next;
+  }
+}
+function draw(){
+ const fallback=ctx.createLinearGradient(0,0,0,H);
+ fallback.addColorStop(0,"#071c33");fallback.addColorStop(1,"#020711");
+ ctx.fillStyle=fallback;ctx.fillRect(0,0,W,H);
+ const im=activeBg();
+ if(im){updateBgRect();ctx.drawImage(im,bgRect.x,bgRect.y,bgRect.w,bgRect.h)}
+ drawGuides();drawHotspots();drawCrops();drawPlayer();
+}
+let routeScreenCache=[];
+function rebuildRouteCache(){
+ routeScreenCache=WORLD.edges.map(([a,b])=>({
+   a,b,A:w2s(...WORLD.nodes[a]),B:w2s(...WORLD.nodes[b])
+ }));
+}
+function drawGuides(){
+  const t=performance.now()/1000;
+  const bridges=new Set(WORLD.bridgeEdges||[]);
+  ctx.save();
+  ctx.lineCap="round";
+  ctx.lineJoin="round";
+  for(const segment of routeScreenCache){
+    const {a,b,A,B}=segment;
+    const key=`${a}-${b}`;
+    const reverse=`${b}-${a}`;
+    const bridge=bridges.has(key)||bridges.has(reverse);
+    ctx.strokeStyle=bridge?"rgba(88,231,255,.88)":"rgba(45,191,255,.58)";
+    ctx.shadowColor=bridge?"#68eaff":"#1eb8ff";
+    ctx.shadowBlur=bridge?12:6;
+    ctx.lineWidth=bridge?4.5:2.5;
+    ctx.setLineDash(bridge?[10,9]:[6,13]);
+    ctx.lineDashOffset=-(t*12)%36;
+    ctx.beginPath();
+    ctx.moveTo(A.x,A.y);
+    ctx.lineTo(B.x,B.y);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+function drawHotspots(){
+  const t=performance.now()/1000;
+  for(const h of WORLD.hotspots){
+    const p=w2s(h.x,h.y);
+    const near=Math.hypot(state.player.x-h.x,state.player.y-h.y)<h.r;
+    const pulse=Math.sin(t*3)*2;
+    ctx.save();
+    ctx.globalAlpha=.96;
+    ctx.fillStyle=near?"rgba(255,207,55,.22)":"rgba(21,192,255,.14)";
+    ctx.strokeStyle=near?"#ffe169":"#4be2ff";
+    ctx.shadowColor=ctx.strokeStyle;
+    ctx.shadowBlur=near?22:15;
+    ctx.lineWidth=4;
+    ctx.beginPath();
+    ctx.ellipse(p.x,p.y,27+pulse,9+pulse*.25,0,0,Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur=0;
+    ctx.font="900 13px 'Noto Sans KR','Malgun Gothic',sans-serif";
+    ctx.textAlign="center";
+    ctx.lineWidth=4;
+    ctx.strokeStyle="#06111b";
+    ctx.strokeText(h.label,p.x,p.y-17);
+    ctx.fillStyle="#fff";
+    ctx.fillText(h.label,p.x,p.y-17);
+    ctx.restore();
+  }
+}
+function drawCrops(){
+  const plots=WORLD.farmPlots||[];
+  state.farm.forEach((f,i)=>{
+    if(!f.seed||!plots[i])return;
+    const pos=plots[i];
+    const p=w2s(pos[0],pos[1]);
+    const growth=Math.min(1,(Date.now()-f.plantedAt)/f.growMs);
+    const size=18+growth*12;
+    ctx.save();
+    ctx.font=`${size}px serif`;
+    ctx.textAlign="center";
+    ctx.shadowColor="rgba(58,255,126,.75)";
+    ctx.shadowBlur=8;
+    ctx.fillText(SEEDS[f.seed].emoji,p.x,p.y);
+    ctx.restore();
+  });
+}
+function getNear(){let best=null,d=Infinity;for(const h of WORLD.hotspots){const n=Math.hypot(state.player.x-h.x,state.player.y-h.y);if(n<h.r&&n<d){best=h;d=n}}return best}
+function startAuto(h){const start=PATH.nearestNode(WORLD,state.player.x,state.player.y);autoPath=PATH.shortestPath(WORLD,start,h.node);autoPath.push({x:h.x,y:h.y});toast(`${h.label} 경로 안내를 시작합니다.`)}
+function interact(){const h=getNear();if(!h){toast("상호작용 원 안으로 이동하세요.");return}if(h.type==="work")doWork(h);if(h.type==="shop")openShop();if(h.type==="farm")openFarm()}
+function doWork(h){const reward=Math.round(h.reward*CHARS[state.character].reward);state.gold+=reward;state.level=1+Math.floor((state.gold+state.harvest*80)/900);state.quests[0]=true;save();toast(`${h.label} 업무 완료 · +${reward}G`)}
+function openShop(){let html="<h2>🌱 씨앗상점</h2><div class='shop-grid'>";for(const[id,s]of Object.entries(SEEDS))html+=`<article class="item shop-item"><h3>${s.emoji} ${s.name}</h3><p><b>${s.price}G</b></p><button type="button" data-buy="${id}">구매</button></article>`;html+="</div>";openModal(html);document.querySelectorAll("[data-buy]").forEach(b=>b.addEventListener("click",()=>buySeed(b.dataset.buy)))}
+function buySeed(id){const s=SEEDS[id];if(state.gold<s.price){toast("골드가 부족합니다.");return}state.gold-=s.price;state.inventory[id]++;state.seeds++;state.quests[1]=true;save();openShop()}
+function openFarm(){let html="<h2>🌿 주말농장</h2><p>각 밭을 선택해 씨앗을 심고 성장 후 수확하세요.</p><div class='farm-grid'>";state.farm.forEach((f,i)=>{if(!f.seed)html+=`<article class=item><h3>밭 ${i+1}</h3><button data-plot="${i}">씨앗 심기</button></article>`;else{const left=Math.max(0,f.growMs-(Date.now()-f.plantedAt));html+=`<article class=item><h3>${SEEDS[f.seed].emoji} 밭 ${i+1}</h3><p>${left?Math.ceil(left/1000)+"초":"수확 가능"}</p><button data-plot="${i}">${left?"확인":"수확"}</button></article>`}});html+="</div>";openModal(html);document.querySelectorAll("[data-plot]").forEach(b=>b.addEventListener("click",()=>usePlot(+b.dataset.plot)))}
+function usePlot(i){const f=state.farm[i];if(!f.seed){const available=Object.keys(SEEDS).filter(id=>state.inventory[id]>0);if(!available.length){toast("먼저 씨앗을 구매하세요.");return}let html="<h2>심을 씨앗 선택</h2><div class='shop-grid'>";available.forEach(id=>html+=`<article class=item><h3>${SEEDS[id].emoji} ${SEEDS[id].name}</h3><button data-plant="${id}">심기</button></article>`);html+="</div>";openModal(html);document.querySelectorAll("[data-plant]").forEach(b=>b.addEventListener("click",()=>plant(i,b.dataset.plant)));return}if(Date.now()-f.plantedAt<f.growMs){toast("아직 성장 중입니다.");return}const s=SEEDS[f.seed];state.gold+=s.reward;state.harvest++;state.quests[3]=true;state.farm[i]={seed:null,plantedAt:0,growMs:0};save();openFarm()}
+async function serverNow(){try{const r=await fetch("./api/time");if(r.ok)return(await r.json()).now}catch{}return Date.now()}
+async function plant(i,id){state.inventory[id]--;state.seeds--;state.farm[i]={seed:id,plantedAt:await serverNow(),growMs:SEEDS[id].grow};state.quests[2]=true;closeModal();save()}
+function updateUI(near){ui("goldText").textContent=state.gold.toLocaleString();ui("seedText").textContent=state.seeds;ui("harvestText").textContent=state.harvest;ui("levelText").textContent=state.level;ui("heroName").textContent=CHARS[state.character].name;ui("portrait").src=CHAR_BASE+CHARS[state.character].img;ui("regionText").textContent=near?near.label:(state.player.x>66?"주말농장 지구":"네온 중앙지구");const labels=["회사 본부에서 업무 수행","씨앗상점에서 씨앗 구매","주말농장에 씨앗 심기","다 자란 작물 수확"];ui("questList").innerHTML=labels.map((x,i)=>`<li class="${state.quests[i]?"done":""}">${x} ${state.quests[i]?"1/1":"0/1"}</li>`).join("");ui("inventoryPreview").innerHTML=Object.entries(SEEDS).map(([id,s])=>`<span>${s.emoji}<small>${state.inventory[id]}</small></span>`).join("")}
+function openModal(html){ui("modalBody").innerHTML=html;ui("modal").classList.add("show")}function closeModal(){ui("modal").classList.remove("show")}function toast(t){ui("toast").textContent=t;ui("toast").classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>ui("toast").classList.remove("show"),1700)}
+function save(){localStorage.setItem("komscoCommercialRouteV2",JSON.stringify(state))}
+function load(){try{const v=JSON.parse(localStorage.getItem("komscoCommercialRouteV2"));if(v)state=Object.assign(SYS.newState(),v)}catch{}const q=PATH.nearestRoad(WORLD,state.player.x,state.player.y);state.player.x=q.x;state.player.y=q.y}
+function buildCards(){const desc={hunmin:"업무와 농장 성장이 균형 잡힌 전략가",daim:"업무 골드 보상이 20% 증가하는 탐색관",sunsik:"이동 속도가 15% 빠른 호위무사"};ui("characterCards").innerHTML=Object.entries(CHARS).map(([id,c])=>`<article class="character-card" data-char="${id}"><img src="${CHAR_BASE+c.img}" alt="${c.name}"><div class=card-copy><h3>${c.name}</h3><b>${c.role}</b><p>${desc[id]}</p></div></article>`).join("");document.querySelectorAll("[data-char]").forEach(card=>card.addEventListener("click",()=>{selected=card.dataset.char;document.querySelectorAll("[data-char]").forEach(x=>x.classList.toggle("selected",x===card));ui("startBtn").disabled=false}))}
+function bindDpad(id,key){const el=ui(id),down=e=>{e.preventDefault();autoPath=[];dpad[key]=true;el.classList.add("pressed");el.setPointerCapture?.(e.pointerId)},up=e=>{e?.preventDefault?.();dpad[key]=false;el.classList.remove("pressed")};el.addEventListener("pointerdown",down);el.addEventListener("pointerup",up);el.addEventListener("pointercancel",up);el.addEventListener("pointerleave",up)}
+addEventListener("resize",resize);addEventListener("keydown",e=>{keys[e.key]=true;if(e.key==="e"||e.key==="Enter")interact()});addEventListener("keyup",e=>keys[e.key]=false);
+bindDpad("moveUp","up");bindDpad("moveDown","down");bindDpad("moveLeft","left");bindDpad("moveRight","right");
+ui("runBtn").addEventListener("pointerdown",()=>run=true);ui("runBtn").addEventListener("pointerup",()=>run=false);ui("interactBtn").addEventListener("click",interact);ui("autoBtn").addEventListener("click",()=>{const h=WORLD.hotspots.reduce((a,b)=>Math.hypot(state.player.x-a.x,state.player.y-a.y)<Math.hypot(state.player.x-b.x,state.player.y-b.y)?a:b);startAuto(h)});
+ui("rankingBtn").addEventListener("click",()=>openModal(`<h2>🏆 랭킹</h2><div class=item><b>현재 점수</b><p>${state.gold+state.harvest*100+state.level*1000}</p></div>`));ui("codexBtn").addEventListener("click",()=>openModal(`<h2>📖 도감</h2><div class=item><p>업무·씨앗·작물 도감이 표시되는 영역입니다.</p></div>`));ui("settingsBtn").addEventListener("click",()=>openModal(`<h2>⚙️ 설정</h2><div class=item><p>낮·밤 자동 전환과 가로 화면 고정이 적용되어 있습니다.</p></div>`));
+ui("menuBtn").addEventListener("click",()=>{ui("utilityDrawer").classList.toggle("open");ui("utilityDrawer").setAttribute("aria-hidden",String(!ui("utilityDrawer").classList.contains("open")))});ui("drawerClose").addEventListener("click",()=>ui("utilityDrawer").classList.remove("open"));ui("shopShortcut").addEventListener("click",openShop);
+ui("questCollapse").addEventListener("click",()=>ui("questPanel").classList.toggle("collapsed"));ui("claimRewardBtn").addEventListener("click",()=>{if(state.quests.every(Boolean)){state.gold+=500;state.quests=[false,false,false,false];save();toast("일일 보상 +500G")}else toast("모든 미션을 완료하세요.")});ui("modalClose").addEventListener("click",closeModal);ui("modal").addEventListener("click",e=>{if(e.target===ui("modal"))closeModal()});
+ui("startBtn").addEventListener("click",async()=>{state.character=selected;started=true;ui("characterSelect").classList.remove("show");await KOMSCO.Orientation.lockLandscape();save();toast(`${CHARS[selected].name}과 함께 시작합니다.`)});
+
+function showFatal(error){
+ console.error(error);
+ const panel=ui("fatalError"),message=ui("fatalMessage");
+ if(message)message.textContent=String(error?.message||error||"알 수 없는 오류");
+ panel?.classList.add("show");
+ ui("loading")?.classList.remove("show");
+}
+ui("fatalReload")?.addEventListener("click",()=>{
+ if("serviceWorker"in navigator){
+   navigator.serviceWorker.getRegistrations().then(rs=>Promise.all(rs.map(r=>r.unregister()))).finally(()=>location.reload());
+ }else location.reload();
+});
+window.addEventListener("error",e=>showFatal(e.error||e.message));
+window.addEventListener("unhandledrejection",e=>showFatal(e.reason));
+
+function loop(now){
+ const dt=Math.min(.04,Math.max(0,(now-last)/1000));
+ last=now;
+ if(!document.hidden){update(dt);draw();}
+ requestAnimationFrame(loop);
+}
+document.addEventListener("visibilitychange",()=>{last=performance.now();});
+(async()=>{
+ try{
+   load();buildCards();resize();
+   const tasks=[
+     loadImage(DAY).then(v=>bgDay=v),
+     loadImage(NIGHT).then(v=>bgNight=v),
+     ...Object.entries(CHARS).map(([id,c])=>loadImage(CHAR_BASE+c.img).then(v=>images[id]=v))
+   ];
+   let done=0;
+   await Promise.all(tasks.map(p=>p.finally(()=>{
+     done++;
+     const bar=ui("loadBar");
+     if(bar)bar.style.width=`${done/tasks.length*100}%`;
+   })));
+   if(!bgDay&&!bgNight)throw new Error("낮·밤 배경 이미지를 찾을 수 없습니다.");
+   const fallbackChar=Object.values(images).find(Boolean);
+   for(const id of Object.keys(CHARS))if(!images[id])images[id]=fallbackChar;
+   updateUI();resize();
+   ui("loading").classList.remove("show");
+   ui("characterSelect").classList.add("show");
+   requestAnimationFrame(loop);
+   if("serviceWorker"in navigator){
+     navigator.serviceWorker.register("./sw.js").catch(console.warn);
+   }
+ }catch(error){showFatal(error);}
+})();
+})();

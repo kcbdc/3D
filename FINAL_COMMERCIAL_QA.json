@@ -1,0 +1,22 @@
+{
+  "version": "commercial-route-v2",
+  "complete_loop_route": true,
+  "manual_movement_projected_to_visible_route": true,
+  "auto_route_uses_same_graph": true,
+  "interaction_markers": "large pulsing ellipses with labels",
+  "character_select": "CSS high-resolution composition from original PNG assets",
+  "top_icons_restored": [
+    "ranking",
+    "codex",
+    "settings"
+  ],
+  "hamburger_drawer": [
+    "region",
+    "seed shop",
+    "inventory"
+  ],
+  "quest_persistent": true,
+  "landscape_lock": true,
+  "html_included": true,
+  "build_required": false
+}

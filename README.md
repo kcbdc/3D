@@ -1,6 +1,21 @@
-# KOMSCO Neon Farm City 최종 완성본
+# KOMSCO 네온시티 낮·밤 자동 전환 및 모바일 가로 고정판
 
-1~6단계 통합: 월드/UI, 경로/충돌, 캐릭터, 게임루프, Cloudflare D1, 모바일 최적화.
+## Cloudflare Pages
 
-Cloudflare Pages: Framework None, Build command 공란, Output /
-D1 binding 이름: DB
+- Framework preset: None
+- Build command: 비워 둠
+- Build output directory: `/`
+- D1 Binding: `DB`
+
+## 시간 기준
+
+- 06:00~17:59: `world_final_day.jpg`
+- 18:00~05:59: `world_final.jpg`
+
+## 이동
+
+보이는 청색 유도선과 실제 이동 판정은 `src/config/world-data.js`의 동일한 노드·간선 데이터를 사용합니다.
+
+## 모바일 가로 화면
+
+PWA manifest, Screen Orientation API, 세로 화면 CSS 회전을 함께 적용했습니다.

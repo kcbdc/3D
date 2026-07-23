@@ -1,1 +1,109 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><meta name="theme-color" content="#06111f"><title>KOMSCO Neon Farm City</title><link rel="stylesheet" href="./style.css?v=stage16-final"><link rel="manifest" href="./manifest.webmanifest"></head><body><main id="app"><canvas id="game"></canvas><div class="vignette"></div><section id="loading" class="screen show"><b>KOMSCO</b><div class="spinner"></div><h1>NEON FARM CITY</h1><div class="load"><i id="loadBar"></i></div></section><section id="characterSelect" class="screen select"><h1>함께할 캐릭터를 선택하세요</h1><p>회사에서 일하고, 씨앗을 구입해 주말농장을 가꾸세요.</p><div id="characterCards" class="cards"></div><button id="startBtn" disabled>게임 시작</button></section><header><div class="profile panel"><img id="profilePortrait"><div><b id="heroName">훈민</b><small id="zoneText">네온 중앙지구</small><div class="exp"><i id="expFill"></i></div></div><em>Lv.<span id="levelText">1</span></em></div><div class="currency panel">🪙 <b id="goldText">300</b>　💎 <b id="gemText">1,250</b>　🌱 <b id="seedText">0</b>　📦 <b id="harvestText">0</b></div><nav class="top"><button id="rankingBtn">🏆<small>랭킹</small></button><button id="codexBtn">📖<small>도감</small></button><button id="settingsBtn">⚙️<small>설정</small></button></nav></header><aside id="questPanel" class="quest panel"><h2>일일 퀘스트</h2><ol id="questList"></ol><button id="claimRewardBtn">모두 받기</button></aside><aside class="right"><div class="panel"><b>현재 지역</b><strong id="regionName">네온 중앙지구</strong><img src="./public/assets/ui/minimap_final.jpg"></div><div class="panel"><b>씨앗상점</b><p>🥕60　🍅90　🍓130</p><button id="shopBtn">상점 바로가기</button></div><div class="panel"><b>인벤토리</b><div id="quickInventory"></div></div></aside><div id="interactionHint"></div><div id="dpad" class="dpad"><button id="moveUp">▲</button><button id="moveLeft">◀</button><i></i><button id="moveRight">▶</button><button id="moveDown">▼</button></div><button id="autoBtn" class="auto">🏃<small>AUTO</small></button><nav class="bottom panel"><button id="characterBtn">🛡️<small>캐릭터</small></button><button id="bagBtn">🎒<small>가방</small></button><button id="questBtn">📜<small>퀘스트</small></button><button id="shopBtn2">🏪<small>상점</small></button><button id="mapBtn">🗺️<small>지도</small></button><button id="friendBtn">👥<small>친구</small></button></nav><button id="interactBtn" class="interact">⚔ 상호작용</button><div id="toast"></div><div id="modal"><section><button id="modalClose">×</button><div id="modalBody"></div></section></div></main><script defer src="./game.js?v=stage16-final"></script></body></html>
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#06101d">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="screen-orientation" content="landscape">
+  <title>KOMSCO Neon Farm City</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./style.css?v=black-screen-perf-v5">
+</head>
+<body>
+<div id="orientationNotice">
+  <div><b>휴대전화를 가로로 돌려주세요</b><span>게임 화면은 가로 모드로 실행됩니다.</span></div>
+</div>
+
+<main id="gameShell">
+  <canvas id="game"></canvas>
+  <section id="fatalError"><div><h2>게임을 불러오지 못했습니다.</h2><p id="fatalMessage">페이지를 새로고침해 주세요.</p><button id="fatalReload" type="button">다시 불러오기</button></div></section>
+
+
+  <section id="loading" class="screen show">
+    <div class="brand">KOMSCO</div>
+    <div class="spinner"></div>
+    <b>네온시티를 준비하고 있습니다.</b>
+    <div class="load-track"><i id="loadBar"></i></div>
+  </section>
+
+  <section id="characterSelect" class="screen character-select">
+    <div class="select-backdrop"></div>
+    <div class="select-content">
+      <p class="eyebrow">SELECT YOUR HERO</p>
+      <h1>함께할 캐릭터를 선택하세요</h1>
+      <p class="select-copy">회사 업무를 수행하고 씨앗을 구매해 주말농장을 성장시키세요.</p>
+      <div id="characterCards" class="character-cards"></div>
+      <button id="startBtn" class="primary-button" type="button" disabled>⚔ 게임 시작</button>
+    </div>
+  </section>
+
+  <header id="hud">
+    <section class="hero-chip panel">
+      <img id="portrait" src="./public/assets/characters/hunmin.png" alt="">
+      <div><b id="heroName">훈민</b><span>Lv. <em id="levelText">1</em></span></div>
+    </section>
+    <section class="resources panel">
+      <span>🪙 <b id="goldText">300</b></span>
+      <span>🌱 <b id="seedText">0</b></span>
+      <span>📦 <b id="harvestText">0</b></span>
+    </section>
+    <nav class="top-icons">
+      <button id="rankingBtn" type="button">🏆<span>랭킹</span></button>
+      <button id="codexBtn" type="button">📖<span>도감</span></button>
+      <button id="settingsBtn" type="button">⚙️<span>설정</span></button>
+      <button id="menuBtn" type="button" aria-label="보조 메뉴">☰<span>메뉴</span></button>
+    </nav>
+  </header>
+
+  <aside id="questPanel" class="panel">
+    <div class="quest-head"><div><small>QUEST</small><b>오늘의 미션</b></div><button id="questCollapse" type="button">−</button></div>
+    <ol id="questList"></ol>
+    <button id="claimRewardBtn" class="primary-button" type="button">보상 받기</button>
+  </aside>
+
+  <aside id="utilityDrawer" class="utility-drawer panel" aria-hidden="true">
+    <div class="drawer-head"><b>빠른 메뉴</b><button id="drawerClose" type="button">×</button></div>
+    <section>
+      <small>현재 지역</small>
+      <strong id="regionText">네온 중앙지구</strong>
+      <img src="./public/assets/world/world_final.jpg" alt="네온시티 미리보기">
+    </section>
+    <section>
+      <small>씨앗상점</small>
+      <div class="seed-row"><span>🥕 60</span><span>🍅 90</span><span>🍓 130</span></div>
+      <button id="shopShortcut" type="button">상점 바로가기</button>
+    </section>
+    <section>
+      <small>인벤토리</small>
+      <div id="inventoryPreview" class="inventory-preview"></div>
+    </section>
+  </aside>
+
+  <div id="interactionHint"></div>
+  <button id="interactBtn" class="primary-button" type="button">상호작용</button>
+
+  <nav id="dpad" aria-label="이동 방향키">
+    <button id="moveUp" type="button">▲</button>
+    <button id="moveLeft" type="button">◀</button>
+    <i></i>
+    <button id="moveRight" type="button">▶</button>
+    <button id="moveDown" type="button">▼</button>
+  </nav>
+  <button id="autoBtn" type="button">AUTO</button>
+  <button id="runBtn" type="button">RUN</button>
+
+  <div id="toast" aria-live="polite"></div>
+  <section id="modal" role="dialog" aria-modal="true">
+    <div class="modal-card"><button id="modalClose" type="button">×</button><div id="modalBody"></div></div>
+  </section>
+</main>
+
+<script defer src="./src/config/world-data.js"></script>
+<script defer src="./src/engine/path-engine.js"></script>
+<script defer src="./src/game/game-systems.js"></script>
+<script defer src="./src/ui/orientation.js"></script>
+<script defer src="./game.js?v=black-screen-perf-v5"></script>
+</body>
+</html>

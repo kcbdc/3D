@@ -1,0 +1,13 @@
+{
+  "version": "commercial-polish-v3",
+  "dpad_auto_spacing": "increased",
+  "route_graph": "simplified complete loop plus exact facility spurs",
+  "hotspot_terminal_match": true,
+  "mint_reachable": true,
+  "manual_movement": "edge continuity and junction directional selection",
+  "character_turn": "lerped horizontal facing",
+  "route_guides": "only actual traversal edges",
+  "shop_modal_contrast": "improved",
+  "html_included": true,
+  "build_required": false
+}

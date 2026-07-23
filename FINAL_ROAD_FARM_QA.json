@@ -1,0 +1,13 @@
+{
+  "version": "road-farm-polish-v4",
+  "farm_crops_use_plot_coordinates": true,
+  "farm_plot_count": 8,
+  "farm_hotspot": "bottom-center road entrance",
+  "hotspots_on_road_surface": true,
+  "guides_only_on_traversable_edges": true,
+  "water_crossing": "bridge edges only",
+  "manual_movement": "current-edge continuity and connected-junction selection",
+  "auto_movement": "graph node path with exact snapping",
+  "html_included": true,
+  "build_required": false
+}
