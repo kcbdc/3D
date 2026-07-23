@@ -1,0 +1,15 @@
+{
+  "version": "2026.07.23-routefix-v6",
+  "background_baked_characters_removed": true,
+  "background_baked_ui_removed": true,
+  "single_player_character_only": true,
+  "characters": "chibi style from approved phase mockup",
+  "coordinate_system": "background-relative",
+  "manual_movement": "connected road graph with snap correction",
+  "auto_movement": "BFS node path",
+  "building_collision": true,
+  "water_collision": true,
+  "bridge_only_crossing": true,
+  "html_included": true,
+  "build_required": false
+}
