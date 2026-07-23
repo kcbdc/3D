@@ -1,0 +1,37 @@
+{
+  "version": "exact-map-fullscreen-route-v9",
+  "map": {
+    "fills_screen": true,
+    "letterbox": false,
+    "crop": false
+  },
+  "route": {
+    "edge_count": 38,
+    "all_hotspots_reachable": true,
+    "manual_junction_lock": true,
+    "auto_endpoint_route": true
+  },
+  "hotspots": {
+    "exact_circle_centers": true,
+    "access_edge_counts": {
+      "HQ": 1,
+      "MINT": 1,
+      "LAB": 1,
+      "ID": 1,
+      "PAPER": 1,
+      "SHOP": 1,
+      "FARM": 1
+    }
+  },
+  "farm": {
+    "plot_count": 12
+  },
+  "tests": {
+    "javascript_syntax": "passed",
+    "runtime_functions": "passed",
+    "required_files": "passed",
+    "graph_connectivity": "passed",
+    "hotspot_access": "passed"
+  },
+  "html_included": true
+}

@@ -1,0 +1,45 @@
+{
+  "version": "exact-map-route-v8",
+  "background": "ChatGPT Image 2026년 7월 24일 오전 01_57_47(1).png",
+  "background_dimensions": [
+    1536,
+    1024
+  ],
+  "fit_mode": "contain",
+  "route_edges": 27,
+  "all_hotspots_reachable": true,
+  "hotspot_centers_exact_normalized": {
+    "HQ": [
+      18.1,
+      31.84
+    ],
+    "MINT": [
+      50.13,
+      31.84
+    ],
+    "LAB": [
+      81.9,
+      31.84
+    ],
+    "ID": [
+      17.45,
+      65.63
+    ],
+    "PAPER": [
+      82.49,
+      65.63
+    ],
+    "SHOP": [
+      24.67,
+      90.63
+    ],
+    "FARM": [
+      50.07,
+      80.96
+    ]
+  },
+  "farm_plot_count": 12,
+  "water_zones": 0,
+  "javascript_syntax": "passed",
+  "index_html": true
+}

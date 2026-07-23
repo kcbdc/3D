@@ -13,10 +13,10 @@ window.KOMSCO.GameSystems = {
   newState(){
     return {
       gold:300,seeds:0,harvest:0,level:1,character:"hunmin",
-      player:{x:43,y:75,speed:17,dir:1},
+      player:{x:50,y:36.6,speed:15,dir:1},
       inventory:{carrot:0,tomato:0,strawberry:0},
       quests:[false,false,false,false],
-      farm:Array.from({length:8},()=>({seed:null,plantedAt:0,growMs:0}))
+      farm:Array.from({length:12},()=>({seed:null,plantedAt:0,growMs:0}))
     };
   }
 };

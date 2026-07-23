@@ -1,63 +1,46 @@
 window.KOMSCO=window.KOMSCO||{};
 window.KOMSCO.WORLD={
-  roadWidth:4.6,
-  nodes:{
-    /* Main roads - all nodes sit on visible asphalt */
-    A:[8,79], B:[18,69], C:[30,73], D:[41,68], E:[52,60],
-    F:[63,54], G:[74,47], H:[87,42], I:[92,58], J:[82,69],
-    K:[69,78], L:[55,84], M:[39,85], N:[23,82],
-
-    O:[13,57], P:[25,52], Q:[38,54], R:[50,48], S:[62,40],
-    T:[75,33], U:[88,27],
-
-    /* Building entrance road points */
-    HQ:[22,44],
-    MINT:[42,42],
-    PAPER:[70,39],
-    ID:[25,59],
-    SHOP:[16,67],
-    FARM:[58,88],
-    LAB:[87,31]
-  },
-  edges:[
-    /* Outer road loop */
-    ["A","B"],["B","C"],["C","D"],["D","E"],["E","F"],["F","G"],
-    ["G","H"],["H","I"],["I","J"],["J","K"],["K","L"],["L","M"],
-    ["M","N"],["N","A"],
-
-    /* Inner roads */
-    ["B","O"],["O","P"],["P","Q"],["Q","R"],["R","S"],["S","T"],
-    ["T","U"],["U","H"],["C","M"],["D","L"],["E","K"],
-
-    /* Bridge-only road links */
-    ["F","J"],["G","I"],
-
-    /* Entrance access roads */
-    ["P","HQ"],["Q","MINT"],["T","PAPER"],["P","ID"],["O","SHOP"],
-    ["L","FARM"],["U","LAB"]
-  ],
-  bridgeEdges:["F-J","G-I"],
-  waterZones:[{x:67,y:24,w:31,h:57}],
-  buildings:[
-    {x:7,y:7,w:23,h:28,label:"본사"},
-    {x:34,y:7,w:25,h:34,label:"화폐본부"},
-    {x:58,y:18,w:22,h:29,label:"제지본부"},
-    {x:17,y:37,w:18,h:24,label:"ID본부"},
-    {x:4,y:58,w:20,h:24,label:"씨앗상점"},
-    {x:70,y:55,w:29,h:39,label:"주말농장"},
-    {x:77,y:4,w:21,h:23,label:"기술연구원"}
-  ],
-  hotspots:[
-    {node:"HQ",x:22,y:44,r:6.5,label:"본사",type:"work",reward:150},
-    {node:"MINT",x:42,y:42,r:6.5,label:"화폐본부",type:"work",reward:170},
-    {node:"PAPER",x:70,y:39,r:6.5,label:"제지본부",type:"work",reward:130},
-    {node:"ID",x:25,y:59,r:6.5,label:"ID본부",type:"work",reward:140},
-    {node:"SHOP",x:16,y:67,r:6.5,label:"씨앗상점",type:"shop"},
-    {node:"FARM",x:58,y:88,r:7.5,label:"주말농장",type:"farm"},
-    {node:"LAB",x:87,y:31,r:6.5,label:"기술연구원",type:"work",reward:160}
-  ],
-  farmPlots:[
-    [76.5,67.5],[80.5,67.0],[84.5,66.5],[88.5,66.0],
-    [76.0,72.0],[80.0,71.5],[84.0,71.0],[88.0,70.5]
-  ]
+ version:"latest-orthogonal-map-v10",roadWidth:2.6,
+ nodes:{
+  OT_L:[3.4,5.2],OT_C1:[35.6,5.2],OT_C2:[65.1,5.2],OT_R:[96.6,5.2],
+  OB_L:[3.4,96.2],OB_C1:[35.6,96.2],OB_C2:[65.1,96.2],OB_R:[96.6,96.2],
+  H1_L:[3.4,36.2],H1_HQ:[22.20,36.2],H1_C1:[35.6,36.2],
+  H1_MINT:[51.63,36.2],H1_C2:[65.1,36.2],H1_LAB:[79.30,36.2],H1_R:[96.6,36.2],
+  H2_L:[3.4,69.2],H2_ID:[20.96,69.2],H2_C1:[35.6,69.2],
+  H2_FARM:[51.95,69.2],H2_C2:[65.1,69.2],H2_PAPER:[79.88,69.2],H2_R:[96.6,69.2],
+  H3_L:[3.4,96.2],H3_SHOP:[20.05,96.2],H3_C1:[35.6,96.2],H3_C2:[65.1,96.2],H3_R:[96.6,96.2],
+  HQ:[22.20,35.06],MINT:[51.63,35.06],LAB:[79.30,35.06],
+  ID:[20.96,65.04],PAPER:[79.88,65.04],FARM:[51.95,68.56],SHOP:[20.05,91.41]
+ },
+ edges:[
+  ["OT_L","OT_C1"],["OT_C1","OT_C2"],["OT_C2","OT_R"],
+  ["OT_L","H1_L"],["H1_L","H2_L"],["H2_L","OB_L"],
+  ["OT_R","H1_R"],["H1_R","H2_R"],["H2_R","OB_R"],
+  ["OB_L","OB_C1"],["OB_C1","OB_C2"],["OB_C2","OB_R"],
+  ["H1_L","H1_HQ"],["H1_HQ","H1_C1"],["H1_C1","H1_MINT"],
+  ["H1_MINT","H1_C2"],["H1_C2","H1_LAB"],["H1_LAB","H1_R"],
+  ["H2_L","H2_ID"],["H2_ID","H2_C1"],["H2_C1","H2_FARM"],
+  ["H2_FARM","H2_C2"],["H2_C2","H2_PAPER"],["H2_PAPER","H2_R"],
+  ["OT_C1","H1_C1"],["H1_C1","H2_C1"],["H2_C1","H3_C1"],
+  ["OT_C2","H1_C2"],["H1_C2","H2_C2"],["H2_C2","H3_C2"],
+  ["H3_L","H3_SHOP"],["H3_SHOP","H3_C1"],["H3_C1","H3_C2"],["H3_C2","H3_R"],
+  ["H1_HQ","HQ"],["H1_MINT","MINT"],["H1_LAB","LAB"],
+  ["H2_ID","ID"],["H2_PAPER","PAPER"],["H2_FARM","FARM"],["H3_SHOP","SHOP"]
+ ],
+ bridgeEdges:[],waterZones:[],
+ hotspots:[
+  {node:"HQ",x:22.20,y:35.06,r:3.2,label:"본사",type:"work",reward:150,color:"#32c9ff"},
+  {node:"MINT",x:51.63,y:35.06,r:3.2,label:"화폐본부",type:"work",reward:170,color:"#a34cff"},
+  {node:"LAB",x:79.30,y:35.06,r:3.2,label:"기술연구원",type:"work",reward:160,color:"#54ed55"},
+  {node:"ID",x:20.96,y:65.04,r:3.2,label:"ID본부",type:"work",reward:140,color:"#32c9ff"},
+  {node:"PAPER",x:79.88,y:65.04,r:3.2,label:"제지본부",type:"work",reward:130,color:"#54ed55"},
+  {node:"FARM",x:51.95,y:68.56,r:3.7,label:"주말농장",type:"farm",color:"#fff17a"},
+  {node:"SHOP",x:20.05,y:91.41,r:3.5,label:"씨앗상점",type:"shop",color:"#ff8a18"}
+ ],
+ farmPlots:[
+  [43.3,45.5],[49.1,45.5],[54.8,45.5],
+  [43.3,51.1],[49.1,51.1],[54.8,51.1],
+  [43.3,56.8],[49.1,56.8],[54.8,56.8],
+  [43.3,62.4],[49.1,62.4],[54.8,62.4]
+ ]
 };

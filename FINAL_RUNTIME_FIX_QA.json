@@ -1,0 +1,22 @@
+{
+  "version": "runtime-fixed-v6",
+  "root_cause": "drawPlayer() and update() functions were accidentally removed during regex-based optimization",
+  "restored_functions": [
+    "drawPlayer",
+    "isMoving",
+    "update"
+  ],
+  "cloudflare_runtime_error_fixed": true,
+  "fatal_diagnostics": {
+    "stack": true,
+    "source": true,
+    "line": true,
+    "column": true
+  },
+  "stale_service_worker_cache_removed": true,
+  "invalid_local_save_recovery": true,
+  "null_safe_mobile_controls": true,
+  "javascript_syntax": "passed",
+  "critical_function_check": "passed",
+  "html_included": true
+}

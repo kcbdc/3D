@@ -1,0 +1,44 @@
+{
+  "version": "latest-orthogonal-map-v10",
+  "background": {
+    "source": "a_detailed_isometric_overhead_night_game_map_style.png",
+    "size": [
+      1536,
+      1024
+    ],
+    "applied": true,
+    "fullscreen": true
+  },
+  "route": {
+    "orthogonal_only": true,
+    "diagonal_edges": 0,
+    "edge_count": 41,
+    "outer_loop": true,
+    "all_hotspots_reachable": true,
+    "turns_only_at_junctions": true,
+    "auto_same_graph": true
+  },
+  "hotspots": {
+    "access_counts": {
+      "HQ": 1,
+      "MINT": 1,
+      "LAB": 1,
+      "ID": 1,
+      "PAPER": 1,
+      "FARM": 1,
+      "SHOP": 1
+    },
+    "coordinates_match_latest_map": true
+  },
+  "farm": {
+    "plot_count": 12
+  },
+  "tests": {
+    "javascript_syntax": "passed",
+    "required_functions": "passed",
+    "graph_connectivity": "passed",
+    "node_route_simulation": "passed",
+    "zip_integrity": "passed"
+  },
+  "html_included": true
+}

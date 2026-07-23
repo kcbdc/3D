@@ -1,40 +1,10 @@
-const CACHE="komsco-black-screen-perf-v5";
-const STATIC=[
- "./public/assets/world/world_final.jpg",
- "./public/assets/world/world_final_day.jpg",
- "./public/assets/characters/hunmin.png",
- "./public/assets/characters/daim.png",
- "./public/assets/characters/sunsik.png"
-];
-self.addEventListener("install",event=>{
- event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(STATIC)).then(()=>self.skipWaiting()));
-});
-self.addEventListener("activate",event=>{
- event.waitUntil(
-   caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))
-   .then(()=>self.clients.claim())
- );
-});
-self.addEventListener("fetch",event=>{
- const req=event.request;
- if(req.method!=="GET")return;
- const url=new URL(req.url);
- const networkFirst=req.mode==="navigate"||/\.(?:html|js|css)$/.test(url.pathname);
- if(networkFirst){
-   event.respondWith(
-     fetch(req).then(res=>{
-       const copy=res.clone();
-       caches.open(CACHE).then(cache=>cache.put(req,copy));
-       return res;
-     }).catch(()=>caches.match(req).then(r=>r||caches.match("./index.html")))
-   );
- }else{
-   event.respondWith(
-     caches.match(req).then(cached=>cached||fetch(req).then(res=>{
-       const copy=res.clone();
-       caches.open(CACHE).then(cache=>cache.put(req,copy));
-       return res;
-     }))
-   );
- }
+const CACHE="komsco-latest-orthogonal-map-v10";
+const STATIC=["./public/assets/world/world_exact_map.png","./public/assets/characters/hunmin.png","./public/assets/characters/daim.png","./public/assets/characters/sunsik.png"];
+self.addEventListener("install",e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(STATIC)).then(()=>self.skipWaiting())));
+self.addEventListener("activate",e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
+self.addEventListener("fetch",e=>{
+ if(e.request.method!=="GET")return;
+ const req=e.request,networkFirst=req.mode==="navigate"||/\.(?:html|js|css)$/.test(new URL(req.url).pathname);
+ if(networkFirst)e.respondWith(fetch(req,{cache:"no-store"}).then(res=>{const copy=res.clone();caches.open(CACHE).then(c=>c.put(req,copy));return res}).catch(()=>caches.match(req)));
+ else e.respondWith(caches.match(req).then(hit=>hit||fetch(req).then(res=>{const copy=res.clone();caches.open(CACHE).then(c=>c.put(req,copy));return res})));
 });

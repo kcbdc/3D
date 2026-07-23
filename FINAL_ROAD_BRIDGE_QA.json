@@ -1,0 +1,31 @@
+{
+  "version": "road-bridge-final-v7",
+  "valid_edge_count": 34,
+  "all_hotspots_reachable": true,
+  "unreachable_hotspots": [],
+  "water_zones": [
+    [
+      76.5,
+      50.5,
+      15.5,
+      10.5
+    ],
+    [
+      85,
+      34,
+      12.5,
+      15
+    ]
+  ],
+  "bridge_edges": [
+    "H-L",
+    "I-K"
+  ],
+  "farm_hotspot": [
+    73,
+    75
+  ],
+  "farm_plots": 8,
+  "javascript_syntax": "passed",
+  "html_included": true
+}
