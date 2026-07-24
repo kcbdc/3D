@@ -1,0 +1,31 @@
+{
+  "version": "2026.07.24-plaza-access-fix-v26",
+  "context": "User confirmed movement is improved in Samsung Internet, and reported a new issue: the bottom-right 'park' (monument plaza) area feels unreachable, like an invisible wall, even after following all the road paths.",
+
+  "how_this_was_analyzed": "Extracted frames from the recording and OCR'd the debug overlay's player-position readout across the whole clip.",
+
+  "finding": {
+    "what_the_data_showed": "The player successfully reached x=96.60 (the map's far-right edge road) and moved up and down along it across a wide range of y values (65 to 96), i.e. the road itself was fully walkable all the way to the bottom-right corner -- the road-graph connectivity was never actually broken.",
+    "actual_root_cause": "Unlike the other 7 named locations (본사/화폐본부/기술연구원/ID본부/제지본부/주말농장/씨앗상점), which each have a dedicated off-road connector node letting the character step off the road into the building/plaza, the two decorative bottom-row plazas (the fountain and the monument/park) never had this connector added at all. The road runs straight past them with no branch -- so no matter how thoroughly a player explores every road segment, there is genuinely no path into either plaza. This wasn't a routing bug in the existing graph; it was a missing feature for these two specific spots (which is exactly what reads as 'a wall with no path', since there's nothing wrong to route around -- the entrance simply doesn't exist yet)."
+  },
+
+  "fix": {
+    "what_was_added": "Two new off-road landmark nodes -- FOUNTAIN (51.95, 94.3) and MONUMENT (79.88, 94.3) -- positioned using the same 'slightly above the road' offset pattern already used for 본사/화폐본부/기술연구원/주말농장. Each connects to a new on-road junction node (H3_FOUNTAIN and H3_MONUMENT) spliced into the previously-unbroken H3 row road, so the road still runs continuously end to end.",
+    "not_added_as_full_hotspots": "These were added as plain walkable nodes, not full interactive hotspots with a work/shop/farm reward -- the request was specifically about being able to walk into the area, not a new gameplay feature. If a reward/interaction is wanted there too, that's a separate follow-up (adding a 7th/8th entry to the hotspots list, plus a doWork()-equivalent handler)."
+  },
+
+  "verification": {
+    "graph_reachability": "Both FOUNTAIN and MONUMENT confirmed reachable from spawn via PATH.shortestPath (7 and 8 hops respectively).",
+    "full_walk_simulation": "Simulated a complete walk from spawn -> right to the far-right column -> down to the bottom row -> left toward the monument junction -> up into the plaza, using the actual game movement code. Final position landed exactly on the MONUMENT node (distance 0.000).",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity (now 31 nodes / 39 edges, still fully connected), AUTO-navigation simulation, the stuck-at-node escape test, the speed-equalization test, and a full headless-browser playthrough (0 console errors) all still pass after this change."
+  },
+
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}
