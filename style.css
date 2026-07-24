@@ -18,17 +18,14 @@ button{font:inherit;color:inherit}#gameShell{position:fixed;inset:0;overflow:hid
 #moveRight{left:122.333px;top:69.667px}
 #moveDown{left:69.667px;top:122.333px}
 /* AUTO button now lives in the dpad center cell (one-handed reach) */
-#autoBtn{left:69.667px!important;top:69.667px!important;border-radius:50%!important;font-weight:700!important;font-size:4px!important;letter-spacing:-.02em!important;line-height:1!important;white-space:nowrap!important;color:#dff4ff;border:2px solid #70d7ff;background:radial-gradient(circle,#0d4d78,#062038);box-shadow:inset 0 0 18px #36b4ff,0 0 15px #2bb9ff;transition:background .15s,border-color .15s,box-shadow .15s}
+#autoBtn{left:69.667px!important;top:69.667px!important;border-radius:50%!important;font-weight:700!important;font-size:12px!important;letter-spacing:-.02em!important;line-height:1!important;white-space:nowrap!important;color:#dff4ff;border:2px solid #70d7ff;background:radial-gradient(circle,#0d4d78,#062038);box-shadow:inset 0 0 18px #36b4ff,0 0 15px #2bb9ff;transition:background .15s,border-color .15s,box-shadow .15s}
 #autoBtn.active{color:#06131f;border-color:#ffd447;background:radial-gradient(circle,#ffe27a,#ffb01a);box-shadow:0 0 22px #ffd44799,inset 0 0 12px #fff6}
 #toast{position:absolute;z-index:80;left:50%;top:42%;transform:translate(-50%,-50%);padding:11px 17px;border-radius:999px;border:1px solid #4cd8ff88;background:#041321ed;opacity:0;transition:.2s}#toast.show{opacity:1;top:39%}
 #modal{position:absolute;z-index:90;inset:0;display:none;align-items:center;justify-content:center;padding:20px;background:#000b}#modal.show{display:flex}.modal-card{position:relative;width:min(670px,90vw);max-height:82vh;overflow:auto;padding:22px;border-radius:18px;background:#071629;border:1px solid #4abfff66}.modal-card>button{position:absolute;right:10px;top:7px;border:0;background:transparent;font-size:28px}.shop-grid,.farm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:10px}.item{padding:12px;border:1px solid #4b9fe455;border-radius:12px;background:#ffffff08}.item button{width:100%;padding:8px;border:0;border-radius:8px;background:#1767aa}
 #orientationNotice{display:none;position:fixed;inset:0;z-index:999;align-items:center;justify-content:center;text-align:center;background:#020711}#orientationNotice b,#orientationNotice span{display:block}#orientationNotice b{font-size:22px}#orientationNotice span{margin-top:7px;color:#bcd2e3}
 @media(max-height:420px) and (orientation:landscape){.brand{font-size:34px}.spinner{width:34px;height:34px;border-width:4px}.select-content h1{font-size:clamp(18px,3.2vw,28px);margin:4px 0}.select-copy{margin:0 0 10px;font-size:13px}.eyebrow{letter-spacing:.22em;font-size:12px}.character-cards{gap:10px}.character-card{height:min(46vh,300px)}.character-card h3{font-size:18px}.character-card p{font-size:11px;margin:3px 14px}.select-content>#startBtn{margin-top:8px;padding:9px 34px;font-size:15px}}
 @media(max-width:900px) and (orientation:landscape){.hero-chip{min-width:170px}.hero-chip img{width:42px;height:42px}.resources{gap:10px;font-size:12px}.top-icons button{font-size:15px;padding:5px 7px}#questPanel{top:73px;width:225px;padding:10px}#questPanel ol{font-size:10px;line-height:1.55}.utility-drawer{top:70px;width:215px}#interactBtn{right:9px;bottom:9px;width:118px;height:50px;font-size:13px}.character-card{height:58vh}.character-card h3{font-size:23px}}
-@media(orientation:portrait){
-  #orientationNotice{display:flex}
-  #gameShell{position:fixed;inset:0;width:100%;height:100%;transform:none}
-}
+
 /* commercial polish v3 */
 .modal-card{
   color:#f8fbff!important;
@@ -79,10 +76,7 @@ html,body,#gameShell{min-width:1px;min-height:1px}
 #fatalError.show{display:flex}
 #fatalError div{max-width:620px;padding:22px;border:1px solid rgba(73,192,255,.45);border-radius:18px;background:#07162a}
 #fatalError button{margin-top:14px;padding:10px 20px;border:0;border-radius:10px;background:#1877bb;color:#fff}
-@media(orientation:portrait){
-  #orientationNotice{display:flex}
-  #gameShell{inset:0;width:100%;height:100%;transform:none!important}
-}
+
 
 #fatalMessage{
   white-space:pre-wrap;
@@ -106,3 +100,24 @@ html,body,#gameShell{min-width:1px;min-height:1px}
 #gameShell,#game{width:100%;height:100%}
 
 #gameShell,#game{width:100%;height:100%}
+
+/* Auto-rotate to landscape in CSS instead of asking the user to physically turn the phone.
+   #gameShell is rotated 90deg and repositioned to exactly fill the (still-portrait) physical
+   viewport, so the game renders landscape-side-up immediately on load, no rotation required.
+   Pointer/touch hit-testing is unaffected since browsers hit-test the post-transform, on-screen
+   position of elements -- our controls are all fixed UI buttons (dpad, AUTO, interact), not raw
+   canvas-coordinate touch handling, so no extra input-remapping math is needed.
+   Placed at the end of the file with !important because several older unconditional
+   #gameShell{width:100%;height:100%;transform:none!important} rules earlier in this file
+   (accumulated from past patches) would otherwise win the cascade and cancel the rotation. */
+@media(orientation:portrait){
+  #orientationNotice{display:none!important}
+  #gameShell{
+    position:absolute!important;
+    top:0!important;left:100%!important;
+    width:100vh!important;height:100vw!important;
+    width:100dvh!important;height:100dvw!important;
+    transform-origin:left top!important;
+    transform:rotate(90deg)!important;
+  }
+}

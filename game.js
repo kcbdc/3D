@@ -1,7 +1,7 @@
 (() => {
 "use strict";
 const ui=id=>document.getElementById(id),canvas=ui("game");
-const ctx=canvas?.getContext("2d",{alpha:false,desynchronized:true})||canvas?.getContext("2d");
+const ctx=canvas?.getContext("2d",{alpha:false})||canvas?.getContext("2d");
 if(!canvas||!ctx)throw new Error("Canvas 2D를 초기화할 수 없습니다.");
 const WORLD=KOMSCO.WORLD,PATH=KOMSCO.PathEngine,SYS=KOMSCO.GameSystems;
 const CHARS=SYS.characters,SEEDS=SYS.seeds,CHAR_BASE="./public/assets/characters/";
@@ -16,15 +16,27 @@ function applyUiScale(){
  // Auto-shrinks HUD/dpad/interact chrome to fit small mobile screens instead of overflowing them.
  // Reference size = a comfortable small-phone landscape viewport; never scales UP past 1 on large screens.
  const REF_W=760,REF_H=380,MIN_SCALE=.62;
- const scale=Math.max(MIN_SCALE,Math.min(1,innerWidth/REF_W,innerHeight/REF_H));
+ const isPortrait=matchMedia("(orientation:portrait)").matches;
+ // #gameShell is CSS-rotated 90deg in portrait, so the effective on-screen landscape viewport
+ // is innerHeight x innerWidth (swapped), not innerWidth x innerHeight.
+ const vw=isPortrait?innerHeight:innerWidth, vh=isPortrait?innerWidth:innerHeight;
+ const scale=Math.max(MIN_SCALE,Math.min(1,vw/REF_W,vh/REF_H));
  document.documentElement.style.setProperty("--ui-scale",scale.toFixed(3));
 }
 function resize(){
  applyUiScale();
  const shell=ui("gameShell");
- const r=shell.getBoundingClientRect();
- W=Math.max(320,Math.round(r.width||innerWidth||1280));
- H=Math.max(180,Math.round(r.height||innerHeight||720));
+ const isPortrait=matchMedia("(orientation:portrait)").matches;
+ if(isPortrait){
+   // #gameShell is CSS-rotated 90deg to render landscape-side-up without a physical rotation;
+   // its rotated bounding box reports physical (portrait) dimensions, so swap them back here.
+   W=Math.max(320,Math.round(innerHeight||1280));
+   H=Math.max(180,Math.round(innerWidth||720));
+ }else{
+   const r=shell.getBoundingClientRect();
+   W=Math.max(320,Math.round(r.width||innerWidth||1280));
+   H=Math.max(180,Math.round(r.height||innerHeight||720));
+ }
  canvas.width=Math.max(1,Math.round(W*DPR));
  canvas.height=Math.max(1,Math.round(H*DPR));canvas.style.width=W+"px";canvas.style.height=H+"px";ctx.setTransform(DPR,0,0,DPR,0,0);updateBgRect();rebuildRouteCache()}
 function updateBgRect(){bgRect={x:0,y:0,w:W,h:H};}
@@ -103,11 +115,21 @@ function rebuildRouteCache(){
 function drawGuides(){
   // Guide lines removed per request — the background art already shows the roads clearly.
 }
+// Hysteresis for hotspot proximity: entering requires crossing h.r, but once "inside" the
+// same hotspot, exiting requires stepping back out past h.r*1.18. Without this, a player
+// standing almost exactly on the boundary (very common right when arriving via AUTO or
+// walking manually into a hotspot) would flip in/out of range from a single pixel of
+// jitter, which is what caused the glow/color/interactionHint to visibly flicker.
+let nearHotspotIdx=-1;
+function isNearHotspot(h,idx){
+  const dist=Math.hypot(state.player.x-h.x,state.player.y-h.y);
+  return dist < (idx===nearHotspotIdx ? h.r*1.18 : h.r);
+}
 function drawHotspots(){
   const t=performance.now()/1000;
-  for(const h of WORLD.hotspots){
+  WORLD.hotspots.forEach((h,idx)=>{
     const p=w2s(h.x,h.y);
-    const near=Math.hypot(state.player.x-h.x,state.player.y-h.y)<h.r;
+    const near=isNearHotspot(h,idx);
     const pulse=Math.sin(t*3)*1.5;
     ctx.save();
     ctx.fillStyle=near?"rgba(255,230,96,.20)":"rgba(255,255,255,.035)";
@@ -118,7 +140,7 @@ function drawHotspots(){
     ctx.beginPath();
     ctx.ellipse(p.x,p.y,25+pulse,10+pulse*.25,0,0,Math.PI*2);
     ctx.fill();ctx.stroke();ctx.restore();
-  }
+  });
 }
 function drawCrops(){
   const plots=WORLD.farmPlots||[];
@@ -244,7 +266,15 @@ function update(dt){
   }
 }
 
-function getNear(){let best=null,d=Infinity;for(const h of WORLD.hotspots){const n=Math.hypot(state.player.x-h.x,state.player.y-h.y);if(n<h.r&&n<d){best=h;d=n}}return best}
+function getNear(){
+  let best=null,bestIdx=-1,d=Infinity;
+  WORLD.hotspots.forEach((h,idx)=>{
+    const n=Math.hypot(state.player.x-h.x,state.player.y-h.y);
+    if(isNearHotspot(h,idx)&&n<d){best=h;bestIdx=idx;d=n}
+  });
+  nearHotspotIdx=bestIdx;
+  return best;
+}
 function setAutoActive(on){ui("autoBtn")?.classList.toggle("active",on)}
 function startAuto(h){
  const nearest=PATH.nearestRoad(WORLD,state.player.x,state.player.y);

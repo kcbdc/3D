@@ -1,0 +1,51 @@
+{
+  "version": "2026.07.24-interaction-landscape-fix-v19",
+
+  "requested_fixes": {
+    "interaction_circle_flicker": {
+      "status": "done",
+      "root_cause_1": "canvas context used {desynchronized:true}, which trades rendering guarantees for lower input latency and can cause visible tearing/flicker on some mobile GPUs -- especially right when a draw call's cost jumps suddenly, like the hotspot glow's shadowBlur going from 13 to 22 the instant the player enters the circle.",
+      "fix_1": "Removed desynchronized:true from the canvas context options.",
+      "root_cause_2": "The hotspot 'near' check was a hard boundary (distance < h.r) recomputed every frame with no hysteresis. A player standing almost exactly on the boundary -- common right after arriving -- could flip in and out of range from a single pixel of movement/jitter, toggling the glow color, shadow blur, line width, and the interactionHint panel on and off rapidly.",
+      "fix_2": "Added hysteresis: entering a hotspot still requires crossing h.r, but once inside, exiting requires stepping back out past h.r*1.18 first. getNear() and drawHotspots() now share the same isNearHotspot()/nearHotspotIdx state so the canvas glow and the interactionHint/interact button always agree.",
+      "verified": "Real headless-browser regression run (JS syntax check, road-graph integrity, and the AUTO-navigation movement simulation) all pass after the change. The specific flicker itself could not be re-created/screen-recorded in this environment (no live device), so this is a root-cause fix based on code review, not a before/after visual capture."
+    },
+
+    "auto_landscape_without_physical_rotation": {
+      "status": "done",
+      "approach": "Replaced the blocking 'please rotate your phone' full-screen notice with a CSS-only auto-rotate: in portrait, #gameShell is rotated 90deg and repositioned (position:absolute; left:100%; width:100dvh; height:100dvw; transform-origin:left top; transform:rotate(90deg)) to exactly fill the physical (still-portrait) viewport, landscape-side-up, with no physical rotation required. #orientationNotice is now permanently hidden.",
+      "bug_found_and_fixed_during_verification": "The rotation rule was initially added inside a media query earlier in the file, but several older unconditional '#gameShell{width:100%;height:100%;transform:none!important}' rules elsewhere in the stylesheet (leftover from past patches) won the cascade and silently cancelled it -- verified via a real headless-browser computed-style check that showed transform:none despite the new rule being present. Fixed by moving the rule to the end of the file with !important on every property, and re-verified with the same computed-style check: transform now correctly reports matrix(0,1,-1,0,0,0) (a 90deg rotation) and the shell's final on-screen bounding box exactly matches the physical viewport (0,0)-(vw,vh).",
+      "resize_and_ui_scale_updated": "game.js's resize() and applyUiScale() both detect the rotated (portrait) state via matchMedia('(orientation:portrait)') and swap innerWidth/innerHeight accordingly, since a rotated element's getBoundingClientRect()/innerWidth report the physical (portrait) footprint, not the logical landscape one the game's canvas and UI scaling need.",
+      "verified_with_real_browser": "Loaded the page with a physically-portrait viewport (375x667) end to end -- confirmed #orientationNotice stays hidden, #gameShell's final rect exactly fills (0,0)-(375,667), the canvas is internally sized 667x375 (landscape space), and all key UI elements (dpad, interactBtn, HUD, questPanel) stay within the physical viewport bounds with no clipping/overflow.",
+      "not_verified": "The exact rotation DIRECTION (clockwise vs counterclockwise) follows the standard/common convention for this technique, but was not confirmed against a real phone's OS-level landscape-primary orientation. If content appears upside-down or mirrored on an actual device, the fix is a one-line change: swap transform:rotate(90deg) to rotate(-90deg) and left:100% to top:100% in the last CSS rule in style.css."
+    },
+
+    "character_select_mobile_fit": {
+      "status": "partially_pre-existing_reviewed_no_further_change_needed",
+      "finding": "This build already had a dedicated '@media(max-height:420px) and (orientation:landscape)' breakpoint that shrinks the title, copy text, card height, and button padding for short mobile-landscape viewports. Tested with a real browser at a small-phone-landscape viewport (667x375, e.g. iPhone SE landscape) -- the character-select content (title through the start button) measured 343.5px tall against a 375px-tall viewport, comfortably fitting with ~31px margin and no scrolling needed.",
+      "additional_safety_added": "No CSS changes were made here beyond what already existed, since the existing breakpoint already tested as fitting correctly. If a specific device/viewport is still found to overflow, please share the exact screen size so the breakpoint threshold can be tuned precisely rather than guessed at."
+    },
+
+    "auto_button_text_size": {
+      "status": "done",
+      "root_cause": "font-size was set to 4px!important -- far too small, illegible.",
+      "fix": "Raised to 12px!important. Verified with a real browser: the rendered 'AUTO' text measures 33.8px wide against the button's 46.66px diameter (about 42.7px of usable width inside the 2px border), leaving a comfortable margin on both sides without touching the circular edge."
+    }
+  },
+
+  "regression_suite_rerun": {
+    "js_syntax_check": "node --check on every .js file (functions/api/*.js checked as ES modules) -- 0 failures",
+    "json_validity": "every .json file and manifest.webmanifest parse correctly",
+    "road_graph_integrity": "27 nodes, 35 edges, 7 hotspots -- fully connected, all hotspots road-reachable from spawn",
+    "auto_navigation_simulation": "all 7 hotspots reached with 0.000 final distance to center, no NaNs, no stalls"
+  },
+
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}
