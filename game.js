@@ -78,11 +78,12 @@ function moveOnRoute(dx,dy,dt){
  if(projected.t<=.05||projected.t>=.95){
    const nodeId=projected.t<=.05?currentEdge[0]:currentEdge[1];
    const next=chooseEdgeAtNode(nodeId,dx,dy,currentEdge);
-   if(next)currentEdge=next;
- }
- if(projected.t<=.006||projected.t>=.994){
-   const nodeId=projected.t<=.006?currentEdge[0]:currentEdge[1],node=WORLD.nodes[nodeId];
-   state.player.x=node[0];state.player.y=node[1];
+   if(next&&edgeKey(next)!==edgeKey(currentEdge)){
+     currentEdge=next;
+   }else if(projected.t<=.006||projected.t>=.994){
+     const node=WORLD.nodes[nodeId];
+     state.player.x=node[0];state.player.y=node[1];
+   }
  }
 }
 function draw(){
@@ -100,22 +101,7 @@ function rebuildRouteCache(){
  }));
 }
 function drawGuides(){
-  const t=performance.now()/1000;
-  ctx.save();ctx.lineCap="round";ctx.lineJoin="round";
-  for(const {A,B} of routeScreenCache){
-    ctx.strokeStyle="rgba(126,211,255,.48)";
-    ctx.shadowColor="#52bfff";ctx.shadowBlur=4;ctx.lineWidth=2;
-    ctx.setLineDash([7,12]);ctx.lineDashOffset=-(t*10)%38;
-    ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);ctx.stroke();
-  }
-  if(autoPath.length){
-    ctx.setLineDash([]);ctx.strokeStyle="rgba(255,213,70,.92)";
-    ctx.shadowColor="#ffd447";ctx.shadowBlur=9;ctx.lineWidth=3;
-    ctx.beginPath();const s=w2s(state.player.x,state.player.y);ctx.moveTo(s.x,s.y);
-    for(const point of autoPath){const q=w2s(point.x,point.y);ctx.lineTo(q.x,q.y)}
-    ctx.stroke();
-  }
-  ctx.restore();
+  // Guide lines removed per request — the background art already shows the roads clearly.
 }
 function drawHotspots(){
   const t=performance.now()/1000;
