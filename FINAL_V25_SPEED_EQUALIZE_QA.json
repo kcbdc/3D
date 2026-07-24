@@ -1,0 +1,33 @@
+{
+  "version": "2026.07.24-speed-equalize-fix-v25",
+  "context": "User confirmed the reported vertical-movement issue also reproduces in Chrome (not just Samsung Internet), with a specific, very useful clue: horizontal movement is fast, vertical movement is very slow. Since this reproduces in Chrome, it's a genuine movement-math bug, not a browser/touch-hit-testing issue.",
+
+  "root_cause_confirmed": {
+    "explanation": "The game's world coordinate system is a 0-100 percentage grid (w2s: x/100*canvasWidth, y/100*canvasHeight), mapped onto a landscape (non-square) canvas -- e.g. roughly 800x360 on a typical mobile screen, about a 2.2:1 aspect ratio. Movement was computed uniformly in this 0-100 'world-unit' space regardless of direction: moving 1 world-unit horizontally covers canvasWidth/100 pixels, but moving 1 world-unit vertically only covers canvasHeight/100 pixels -- roughly 2.2x fewer. Since the speed value was applied identically to both axes, vertical movement was visually ~2.2x slower than horizontal for the exact same 'speed' setting, on every device and every browser (this was never actually a Samsung-Internet-specific or touch-specific bug at all).",
+    "verified_by_isolated_calculation": "Directly computed per-frame pixel distance for pure horizontal vs pure vertical movement using the OLD formula at a typical 800x360 canvas: horizontal covered ~2.27px/frame, vertical covered ~1.02px/frame -- a 2.2x speed difference, matching the reported 'vertical is much slower' symptom exactly."
+  },
+
+  "fix": {
+    "approach": "Added a worldStep(tx, ty, speed, dt) helper that computes movement in PIXEL space first (converting the direction to pixels, normalizing, applying speed*dt uniformly in pixels), then converts the result back to world-percent units. This guarantees the ON-SCREEN pixel speed is identical in every direction (including diagonals), regardless of the canvas's aspect ratio.",
+    "applied_to": "Both the road-following movement (moveOnRoute) and the AUTO auto-navigation's final free-movement approach to off-road hotspots (HQ/MINT/LAB), which had the identical bug for any hop with a vertical component.",
+    "note": "Horizontal movement's speed/feel is unchanged (the fix uses horizontal as the reference and speeds vertical up to match, not the other way around), so existing gameplay pacing/balance along horizontal roads is preserved."
+  },
+
+  "verification": {
+    "isolated_math_test": "worldStep() produces mathematically identical pixel-per-frame distances for pure horizontal, pure vertical, and diagonal directions, verified across 3 different canvas aspect ratios (mobile landscape 800x360, desktop-ish 1536x1024 and 1200x700) -- all ratios came out to exactly 1.0000.",
+    "full_movement_simulation": "Re-ran a clean (non-edge-boundary-limited) simulation using the actual game's moveOnRoute logic on real horizontal and vertical roads from the map data: both covered exactly 22.7 pixels over the same 10 frames.",
+    "permanent_regression_test_added": "route_test_v25_speed_equalization.js checks this mathematically on every future change; passes.",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity, AUTO-navigation simulation, the v24 stuck-at-node escape test, and a full headless-browser playthrough (0 console errors) all still pass after this change."
+  },
+
+  "note_on_earlier_touch_hit_testing_investigation": "The zoom-vs-transform fix (v23) and the touch/overscroll fixes (v20/v21) addressed real, separately-confirmed issues (the OCR data showing 0 UP events for a stretch, and the stuck-at-node bug), but this speed asymmetry was an entirely separate, previously-undiscovered bug that was likely making vertical movement feel broken/unusable even on devices/browsers where touch input itself was working fine. It's very possible this was the dominant contributor to the overall 'vertical doesn't work' perception all along, layered on top of the other real issues already fixed.",
+
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}

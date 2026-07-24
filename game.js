@@ -56,6 +56,14 @@ function resize(){
 }
 function updateBgRect(){bgRect={x:0,y:0,w:W,h:H};}
 const w2s=(x,y)=>({x:bgRect.x+x/100*bgRect.w,y:bgRect.y+y/100*bgRect.h});
+// Converts a world-space direction (tx,ty; doesn't need to be unit length) into a world-space
+// step whose ON-SCREEN PIXEL length is speed*dt, regardless of direction. See note above.
+function worldStep(tx,ty,speed,dt){
+ const kx=(bgRect.w||1)/100,ky=(bgRect.h||1)/100;
+ const pixelLen=Math.hypot(tx*kx,ty*ky)||1;
+ const scale=kx*speed*dt/pixelLen;
+ return{x:tx*scale,y:ty*scale};
+}
 function loadImage(src){
  return new Promise(resolve=>{
    const im=new Image();
@@ -105,7 +113,8 @@ function moveOnRoute(dx,dy,dt){
  const info=edgeInfo(currentEdge);
  const sign=(dx*info.tx+dy*info.ty)>=0?1:-1;
  const speed=state.player.speed*CHARS[state.character].speed;
- const projected=edgeProjection(currentEdge,info.x+info.tx*sign*speed*dt,info.y+info.ty*sign*speed*dt);
+ const step=worldStep(info.tx*sign,info.ty*sign,speed,dt);
+ const projected=edgeProjection(currentEdge,info.x+step.x,info.y+step.y);
  state.player.x=projected.x;state.player.y=projected.y;
  const desired=info.tx*sign<0?-1:1;
  state.player.dirLerp=(state.player.dirLerp??state.player.dir??1)+(desired-(state.player.dirLerp??state.player.dir??1))*Math.min(1,dt*9);
@@ -256,8 +265,9 @@ function update(dt){
       // free 2D movement straight to the hotspot — no road constraint, so no edge-projection shake
       const speed=state.player.speed*CHARS[state.character].speed;
       const nx=dx/dist,ny=dy/dist;
-      state.player.x+=nx*speed*dt;
-      state.player.y+=ny*speed*dt;
+      const step=worldStep(nx,ny,speed,dt);
+      state.player.x+=step.x;
+      state.player.y+=step.y;
       const desired=nx<0?-1:1;
       state.player.dirLerp=(state.player.dirLerp??state.player.dir??1)+(desired-(state.player.dirLerp??state.player.dir??1))*Math.min(1,dt*9);
       state.player.dir=state.player.dirLerp<0?-1:1;
