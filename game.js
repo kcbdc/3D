@@ -24,6 +24,11 @@ function applyUiScale(){
  document.documentElement.style.setProperty("--ui-scale",scale.toFixed(3));
 }
 function resize(){
+ // Most reliable cross-browser viewport measurement -- dvh/dvw support is inconsistent across
+ // Android WebView variants (Samsung Internet/Edge lag behind Chrome here), so we compute our
+ // own from innerWidth/innerHeight and drive the portrait auto-rotate sizing from these instead.
+ document.documentElement.style.setProperty("--vh",(innerHeight*0.01)+"px");
+ document.documentElement.style.setProperty("--vw",(innerWidth*0.01)+"px");
  applyUiScale();
  const shell=ui("gameShell");
  const isPortrait=matchMedia("(orientation:portrait)").matches;
@@ -38,7 +43,17 @@ function resize(){
    H=Math.max(180,Math.round(r.height||innerHeight||720));
  }
  canvas.width=Math.max(1,Math.round(W*DPR));
- canvas.height=Math.max(1,Math.round(H*DPR));canvas.style.width=W+"px";canvas.style.height=H+"px";ctx.setTransform(DPR,0,0,DPR,0,0);updateBgRect();rebuildRouteCache()}
+ canvas.height=Math.max(1,Math.round(H*DPR));canvas.style.width=W+"px";canvas.style.height=H+"px";ctx.setTransform(DPR,0,0,DPR,0,0);updateBgRect();rebuildRouteCache();
+ // Expose the game's logical (post-rotation) dimensions for CSS that needs to size itself
+ // correctly regardless of physical device orientation -- raw vw/vh units and orientation-based
+ // media queries both reference the PHYSICAL viewport, which is wrong once #gameShell is
+ // CSS-rotated 90deg for the portrait auto-landscape trick.
+ const root=document.documentElement;
+ root.style.setProperty("--game-w",W+"px");
+ root.style.setProperty("--game-h",H+"px");
+ root.classList.toggle("compact-w",W<900);
+ root.classList.toggle("compact-h",H<420);
+}
 function updateBgRect(){bgRect={x:0,y:0,w:W,h:H};}
 const w2s=(x,y)=>({x:bgRect.x+x/100*bgRect.w,y:bgRect.y+y/100*bgRect.h});
 function loadImage(src){
@@ -335,7 +350,17 @@ function bindDpad(id,key){
  el.addEventListener("pointerup",up);
  el.addEventListener("pointercancel",up);
  el.addEventListener("lostpointercapture",up);
+ // Touch-event fallback: some Android WebView browsers (Samsung Internet/Edge) have had
+ // inconsistent Pointer Events support compared to desktop-parity Chrome, which can silently
+ // drop pointerdown/up on some buttons but not others -- touch events are the more universally
+ // reliable API to layer on top as a safety net.
+ el.addEventListener("touchstart",down,{passive:false});
+ el.addEventListener("touchend",up,{passive:false});
+ el.addEventListener("touchcancel",up,{passive:false});
 }
+addEventListener("contextmenu",e=>e.preventDefault());
+addEventListener("selectstart",e=>e.preventDefault());
+addEventListener("copy",e=>e.preventDefault());
 const MOVE_KEYS=new Set(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","w","a","s","d"]);
 addEventListener("resize",resize);
 addEventListener("orientationchange",()=>{
@@ -409,6 +434,11 @@ document.addEventListener("visibilitychange",()=>{last=performance.now();});
    ui("loading").classList.remove("show");
    ui("characterSelect").classList.add("show");
    requestAnimationFrame(loop);
+   // Catch late viewport settling on Android browsers whose toolbar takes a moment to
+   // collapse after load (this is what caused the character-select screen to render
+   // clipped until the device was physically rotated, which forces a resize).
+   requestAnimationFrame(resize);
+   [150,400,900].forEach(ms=>setTimeout(resize,ms));
    if("serviceWorker"in navigator){
      navigator.serviceWorker.register("./sw.js").catch(console.warn);
    }

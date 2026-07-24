@@ -1,6 +1,6 @@
 window.KOMSCO=window.KOMSCO||{};
 window.KOMSCO.WORLD={
- version:"interaction-landscape-fix-v19",roadWidth:2.6,
+ version:"mobile-browser-fix-v20",roadWidth:2.6,
  nodes:{
   OT_L:[5.4,5.2],OT_C1:[37.9,5.2],OT_C2:[67.3,5.2],OT_R:[96.6,5.2],
   H1_L:[5.4,36.2],H1_HQ:[22.20,36.2],H1_C1:[37.9,36.2],
