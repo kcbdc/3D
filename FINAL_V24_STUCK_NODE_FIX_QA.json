@@ -1,0 +1,39 @@
+{
+  "version": "2026.07.24-stuck-node-fix-v24",
+  "context": "User sent a 63-second Samsung Internet recording (with the v22/v23 diagnostic overlay visible) plus two settings screenshots, reporting vertical movement still not working and that entering a hotspot's interaction circle via AUTO makes it impossible to escape.",
+
+  "how_this_was_analyzed": "Same as before -- this environment can't play video, so frames were extracted at 2fps and the whole 63-second diagnostic overlay timeline was read via OCR. This time it produced a fully conclusive, reproducible finding.",
+
+  "confirmed_bug_stuck_at_dead_end_junction": {
+    "hard_data": "The overlay showed the player's position frozen at (79.30, 35.06) for roughly 40 seconds (from ~t=19s to ~t=57s) while the event counters for DOWN, LEFT, and eventually UP kept climbing the whole time (e.g. DOWN went from 21 to 57, LEFT from 5 to 40) -- proving touches WERE reaching the buttons and the game WAS receiving input, but position simply never changed. (79.30, 35.06) is the exact coordinate of the '기술연구원' (LAB) hotspot, reached here via AUTO.",
+    "root_cause_found_by_simulation": "LAB (and HQ, MINT -- all 3 are 'off-road' hotspots) sit at the end of a short dead-end spur off the main road. The movement code only re-evaluates which road to follow (chooseEdgeAtNode) at the exact instant the player's position crosses into a junction's threshold zone. If the input direction at that exact instant doesn't match any available road (e.g. pressing straight down at a junction where the only roads are horizontal), the code gave up permanently and locked the player onto the old dead-end edge -- changing direction afterward was never reconsidered, because no new junction-crossing event could occur while sitting still. This was reproduced exactly in a standalone simulation using the real game code: pressing DOWN correctly escapes the dead-end spur onto the junction, but then holding DOWN for 30+ more frames leaves the player frozen there forever -- switching to LEFT or RIGHT afterward still didn't help under the old code, since the stale 'currentEdge' from the dead-end was never re-examined.",
+    "fix": "moveOnRoute now re-checks the current input against all roads at a junction every single frame the player is sitting there, not just once at the moment of arrival. A direction change is now picked up on the very next frame instead of never.",
+    "verified": "Re-ran the exact stuck scenario in the standalone simulation: pressing DOWN for 40 frames, holding DOWN for 30 more (this used to be the point of no return), then switching to RIGHT for 30 frames -- the player now correctly escapes onto the horizontal road (x moved from 79.30 to 87.80). Added a permanent regression test (route_test_v23_stuck_node.js) that arrives at all 3 off-road hotspots (HQ/MINT/LAB), deliberately tries the 'wrong' directions first the way a confused real player would, and confirms every one of them can now be escaped -- this passes."
+  },
+
+  "vertical_touch_events_intermittent": {
+    "status": "additional defensive fix applied, still not 100% confirmed root cause",
+    "pattern_observed": "In this recording, the UP button's event counter was stuck at 0 for the first ~15-20 seconds, then started climbing normally for the rest of the session. This 'starts failing, then starts working' pattern (rather than a permanent failure) doesn't perfectly fit the transform/zoom hit-test theory from the previous fix, since that would be expected to be consistently broken, not something that self-corrects mid-session.",
+    "new_hypothesis": "Mobile browsers with a dynamic address bar (Samsung Internet included) can change the truly-visible viewport height after the page has already measured and laid out the dpad, and a plain 'resize' event doesn't always fire for this specific kind of change. If the dpad's calculated position was briefly out of sync with where it's actually rendered on screen while the toolbar was still settling, a button near the affected edge could be temporarily unreachable until some other event forced a recalculation -- matching the 'starts working after a while' pattern.",
+    "fix": "Added visualViewport resize/scroll listeners (in addition to the existing window resize/orientationchange listeners) so the game's size/position calculations re-run immediately whenever the toolbar-driven visible area changes, rather than only at page load and a few fixed timeouts.",
+    "not_verified": "Still could not test on an actual Samsung Internet browser. If UP is still unreliable after this, the debug overlay's event counters will show whether it's still a 0-events problem (no touch reaching the button) or something else -- please share those numbers again if so."
+  },
+
+  "regression_suite_rerun": {
+    "js_syntax_check": "pass",
+    "json_validity": "pass",
+    "road_graph_integrity": "pass, 27 nodes / 35 edges / 7 hotspots",
+    "auto_navigation_simulation": "pass, all 7 hotspots reached, no NaNs/stalls",
+    "new_stuck_node_regression_test": "pass, all 3 off-road hotspots (HQ/MINT/LAB) escapable even when the 'wrong' direction is tried first",
+    "headless_browser_playthrough": "pass, 0 console errors"
+  },
+
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}

@@ -94,6 +94,14 @@ function moveOnRoute(dx,dy,dt){
  dx/=magnitude;dy/=magnitude;
  if(!currentEdge)currentEdge=nearestEdge();
  if(!currentEdge)return;
+ // Re-evaluate the best edge for the CURRENT input every frame the player is sitting at a
+ // node (not just once, at the moment they first arrived) -- see fix note above moveOnRoute.
+ const tNow=edgeProjection(currentEdge,state.player.x,state.player.y).t;
+ if(tNow<=.01||tNow>=.99){
+   const nodeId=tNow<=.01?currentEdge[0]:currentEdge[1];
+   const next=chooseEdgeAtNode(nodeId,dx,dy,currentEdge);
+   if(next&&edgeKey(next)!==edgeKey(currentEdge))currentEdge=next;
+ }
  const info=edgeInfo(currentEdge);
  const sign=(dx*info.tx+dy*info.ty)>=0?1:-1;
  const speed=state.player.speed*CHARS[state.character].speed;
@@ -373,6 +381,14 @@ addEventListener("orientationchange",()=>{
   clearTimeout(resizeSettleTimer);
   resizeSettleTimer=setTimeout(resize,120);
 });
+if(window.visualViewport){
+  // Fires specifically when a mobile browser's address bar/toolbar shows or hides, changing
+  // the truly-visible viewport -- a plain window 'resize' event doesn't always fire for this,
+  // which could leave the dpad positioned against a stale (too-small or too-large) measurement
+  // until some other event happened to trigger a recompute.
+  visualViewport.addEventListener("resize",resize);
+  visualViewport.addEventListener("scroll",resize);
+}
 addEventListener("keydown",e=>{
   keys[e.key]=true;
   if(MOVE_KEYS.has(e.key)&&autoPath.length){autoPath=[];currentEdge=null;setAutoActive(false)}
