@@ -1,0 +1,35 @@
+{
+  "version": "road-center-hotspots-v11",
+  "moved_hotspots": {
+    "ID본부": {
+      "x": 20.96,
+      "y": 69.2,
+      "road": "middle horizontal"
+    },
+    "제지본부": {
+      "x": 79.88,
+      "y": 69.2,
+      "road": "middle horizontal"
+    },
+    "씨앗상점": {
+      "x": 20.05,
+      "y": 96.2,
+      "road": "bottom outer loop"
+    }
+  },
+  "bug_fixes": [
+    "removed inward spur edges for ID/PAPER/SHOP",
+    "AUTO endpoint selection uses actual route distance",
+    "duplicate initial AUTO waypoint suppressed",
+    "cache and save versions renewed"
+  ],
+  "tests": {
+    "javascript_syntax": "passed",
+    "route_simulation": "passed",
+    "all_hotspots_reachable": "passed",
+    "orthogonal_only": "passed",
+    "duplicate_functions": "passed",
+    "farm_plots": 12,
+    "index_html": true
+  }
+}

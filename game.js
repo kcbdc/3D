@@ -7,12 +7,20 @@ const WORLD=KOMSCO.WORLD,PATH=KOMSCO.PathEngine,SYS=KOMSCO.GameSystems;
 const CHARS=SYS.characters,SEEDS=SYS.seeds,CHAR_BASE="./public/assets/characters/";
 const DAY="./public/assets/world/world_exact_map.png",NIGHT="./public/assets/world/world_exact_map.png";
 const DPR=Math.min(devicePixelRatio||1, innerWidth<900?1.35:1.75);
-let W=0,H=0,bgRect={x:0,y:0,w:1,h:1},bgDay,bgNight,last=performance.now(),selected=null,started=false,run=false,autoPath=[],currentEdge=null,lastUiUpdate=0;
+let W=0,H=0,bgRect={x:0,y:0,w:1,h:1},bgDay,bgNight,last=performance.now(),selected=null,started=false,autoPath=[],currentEdge=null,lastUiUpdate=0,resizeSettleTimer=null;
 const images={},keys={},dpad={up:false,down:false,left:false,right:false};let state=SYS.newState();
 
 const isDay=()=>{const h=new Date().getHours();return h>=6&&h<18};
 const activeBg=()=>isDay()?bgDay:bgNight;
+function applyUiScale(){
+ // Auto-shrinks HUD/dpad/interact chrome to fit small mobile screens instead of overflowing them.
+ // Reference size = a comfortable small-phone landscape viewport; never scales UP past 1 on large screens.
+ const REF_W=760,REF_H=380,MIN_SCALE=.62;
+ const scale=Math.max(MIN_SCALE,Math.min(1,innerWidth/REF_W,innerHeight/REF_H));
+ document.documentElement.style.setProperty("--ui-scale",scale.toFixed(3));
+}
 function resize(){
+ applyUiScale();
  const shell=ui("gameShell");
  const r=shell.getBoundingClientRect();
  W=Math.max(320,Math.round(r.width||innerWidth||1280));
@@ -52,7 +60,7 @@ function chooseEdgeAtNode(nodeId,inputX,inputY,previousEdge){
    const score=inputX*(vx/len)+inputY*(vy/len)-penalty;
    if(score>bestScore){bestScore=score;best=edge}
  }
- return bestScore>.08?best:null;
+ return bestScore>-.15?best:null;
 }
 function moveOnRoute(dx,dy,dt){
  const magnitude=Math.hypot(dx,dy);if(magnitude<.05)return;
@@ -61,17 +69,22 @@ function moveOnRoute(dx,dy,dt){
  if(!currentEdge)return;
  const info=edgeInfo(currentEdge);
  const sign=(dx*info.tx+dy*info.ty)>=0?1:-1;
- const speed=state.player.speed*CHARS[state.character].speed*(run||keys.Shift?1.42:1);
+ const speed=state.player.speed*CHARS[state.character].speed;
  const projected=edgeProjection(currentEdge,info.x+info.tx*sign*speed*dt,info.y+info.ty*sign*speed*dt);
  state.player.x=projected.x;state.player.y=projected.y;
  const desired=info.tx*sign<0?-1:1;
  state.player.dirLerp=(state.player.dirLerp??state.player.dir??1)+(desired-(state.player.dirLerp??state.player.dir??1))*Math.min(1,dt*9);
  state.player.dir=state.player.dirLerp<0?-1:1;
- if(projected.t<=.006||projected.t>=.994){
-   const nodeId=projected.t<=.006?currentEdge[0]:currentEdge[1],node=WORLD.nodes[nodeId];
-   state.player.x=node[0];state.player.y=node[1];
+ if(projected.t<=.05||projected.t>=.95){
+   const nodeId=projected.t<=.05?currentEdge[0]:currentEdge[1],node=WORLD.nodes[nodeId];
+   const distToNode=Math.hypot(projected.x-node[0],projected.y-node[1]);
    const next=chooseEdgeAtNode(nodeId,dx,dy,currentEdge);
-   if(next)currentEdge=next;
+   if(next){
+     if(distToNode<.35){state.player.x=node[0];state.player.y=node[1];}
+     currentEdge=next;
+   }else if(projected.t<=.006||projected.t>=.994){
+     state.player.x=node[0];state.player.y=node[1];
+   }
  }
 }
 function draw(){
@@ -186,10 +199,12 @@ function update(dt){
 
   if(autoPath.length){
     const target=autoPath[0];
+    const isFinalHop=autoPath.length===1; // last waypoint = the hotspot itself, may sit off-road
     dx=target.x-state.player.x;
     dy=target.y-state.player.y;
+    const dist=Math.hypot(dx,dy);
 
-    if(Math.hypot(dx,dy)<.38){
+    if(dist<.38){
       state.player.x=target.x;
       state.player.y=target.y;
       autoPath.shift();
@@ -201,8 +216,22 @@ function update(dt){
         currentEdge=WORLD.edges.find(([a,b])=>
           (a===currentNode&&b===nextNode)||(a===nextNode&&b===currentNode)
         )||currentEdge;
+      }else{
+        currentEdge=null; // route finished; re-resolve nearest road fresh on next manual move
+        setAutoActive(false);
       }
 
+      dx=0;
+      dy=0;
+    }else if(isFinalHop){
+      // free 2D movement straight to the hotspot — no road constraint, so no edge-projection shake
+      const speed=state.player.speed*CHARS[state.character].speed;
+      const nx=dx/dist,ny=dy/dist;
+      state.player.x+=nx*speed*dt;
+      state.player.y+=ny*speed*dt;
+      const desired=nx<0?-1:1;
+      state.player.dirLerp=(state.player.dirLerp??state.player.dir??1)+(desired-(state.player.dirLerp??state.player.dir??1))*Math.min(1,dt*9);
+      state.player.dir=state.player.dirLerp<0?-1:1;
       dx=0;
       dy=0;
     }
@@ -232,6 +261,7 @@ function update(dt){
 }
 
 function getNear(){let best=null,d=Infinity;for(const h of WORLD.hotspots){const n=Math.hypot(state.player.x-h.x,state.player.y-h.y);if(n<h.r&&n<d){best=h;d=n}}return best}
+function setAutoActive(on){ui("autoBtn")?.classList.toggle("active",on)}
 function startAuto(h){
  const nearest=PATH.nearestRoad(WORLD,state.player.x,state.player.y);
  if(!nearest.edge){toast("현재 위치에서 도로를 찾을 수 없습니다.");return}
@@ -245,6 +275,7 @@ function startAuto(h){
  const last=autoPath[autoPath.length-1];
  if(!last||Math.hypot(last.x-h.x,last.y-h.y)>.05)autoPath.push({x:h.x,y:h.y});
  currentEdge=nearest.edge;
+ setAutoActive(true);
  toast(`${h.label} 경로 안내를 시작합니다.`);
 }
 function interact(){const h=getNear();if(!h){toast("상호작용 원 안으로 이동하세요.");return}if(h.type==="work")doWork(h);if(h.type==="shop")openShop();if(h.type==="farm")openFarm()}
@@ -274,21 +305,46 @@ function load(){
  state.player.y=q.y;
  state.player.dir=state.player.dir||1;
  state.player.dirLerp=state.player.dir;
+ if(!state.player.speed||state.player.speed<17)state.player.speed=17; // migrate pre-v12 saves to the RUN-removal baseline speed
 }
 function buildCards(){const desc={hunmin:"업무와 농장 성장이 균형 잡힌 전략가",daim:"업무 골드 보상이 20% 증가하는 탐색관",sunsik:"이동 속도가 15% 빠른 호위무사"};ui("characterCards").innerHTML=Object.entries(CHARS).map(([id,c])=>`<article class="character-card" data-char="${id}"><img src="${CHAR_BASE+c.img}" alt="${c.name}"><div class=card-copy><h3>${c.name}</h3><b>${c.role}</b><p>${desc[id]}</p></div></article>`).join("");document.querySelectorAll("[data-char]").forEach(card=>card.addEventListener("click",()=>{selected=card.dataset.char;document.querySelectorAll("[data-char]").forEach(x=>x.classList.toggle("selected",x===card));ui("startBtn").disabled=false}))}
 function bindDpad(id,key){
  const el=ui(id);
  if(!el){console.warn(`이동 버튼 누락: ${id}`);return;}
- const down=e=>{e.preventDefault();autoPath=[];dpad[key]=true;el.classList.add("pressed");el.setPointerCapture?.(e.pointerId)};
+ const down=e=>{
+   e.preventDefault();
+   if(autoPath.length){autoPath=[];currentEdge=null;setAutoActive(false)} // manual input takes over instantly, no stale route/edge
+   dpad[key]=true;el.classList.add("pressed");el.setPointerCapture?.(e.pointerId)
+ };
  const up=e=>{e?.preventDefault?.();dpad[key]=false;el.classList.remove("pressed")};
  el.addEventListener("pointerdown",down);
  el.addEventListener("pointerup",up);
  el.addEventListener("pointercancel",up);
- el.addEventListener("pointerleave",up);
+ el.addEventListener("lostpointercapture",up);
 }
-addEventListener("resize",resize);addEventListener("keydown",e=>{keys[e.key]=true;if(e.key==="e"||e.key==="Enter")interact()});addEventListener("keyup",e=>keys[e.key]=false);
+const MOVE_KEYS=new Set(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","w","a","s","d"]);
+addEventListener("resize",resize);
+addEventListener("orientationchange",()=>{
+  // iOS/Android often report stale innerWidth/innerHeight the instant orientationchange fires;
+  // re-measure shortly after the browser finishes its own layout pass so the dpad/HUD realign correctly.
+  clearTimeout(resizeSettleTimer);
+  resizeSettleTimer=setTimeout(resize,120);
+});
+addEventListener("keydown",e=>{
+  keys[e.key]=true;
+  if(MOVE_KEYS.has(e.key)&&autoPath.length){autoPath=[];currentEdge=null;setAutoActive(false)}
+  if(e.key==="e"||e.key==="Enter")interact()
+});
+addEventListener("keyup",e=>keys[e.key]=false);
 bindDpad("moveUp","up");bindDpad("moveDown","down");bindDpad("moveLeft","left");bindDpad("moveRight","right");
-ui("runBtn").addEventListener("pointerdown",()=>run=true);ui("runBtn").addEventListener("pointerup",()=>run=false);ui("interactBtn").addEventListener("click",interact);ui("autoBtn").addEventListener("click",()=>{const h=WORLD.hotspots.reduce((a,b)=>Math.hypot(state.player.x-a.x,state.player.y-a.y)<Math.hypot(state.player.x-b.x,state.player.y-b.y)?a:b);startAuto(h)});
+ui("interactBtn").addEventListener("click",interact);
+ui("autoBtn").addEventListener("click",()=>{
+ if(autoPath.length){ // tap again to cancel an in-progress route
+   autoPath=[];currentEdge=null;setAutoActive(false);toast("자동 이동을 취소했습니다.");return;
+ }
+ const h=WORLD.hotspots.reduce((a,b)=>Math.hypot(state.player.x-a.x,state.player.y-a.y)<Math.hypot(state.player.x-b.x,state.player.y-b.y)?a:b);
+ startAuto(h);
+});
 ui("rankingBtn").addEventListener("click",()=>openModal(`<h2>🏆 랭킹</h2><div class=item><b>현재 점수</b><p>${state.gold+state.harvest*100+state.level*1000}</p></div>`));ui("codexBtn").addEventListener("click",()=>openModal(`<h2>📖 도감</h2><div class=item><p>업무·씨앗·작물 도감이 표시되는 영역입니다.</p></div>`));ui("settingsBtn").addEventListener("click",()=>openModal(`<h2>⚙️ 설정</h2><div class=item><p>낮·밤 자동 전환과 가로 화면 고정이 적용되어 있습니다.</p></div>`));
 ui("menuBtn").addEventListener("click",()=>{ui("utilityDrawer").classList.toggle("open");ui("utilityDrawer").setAttribute("aria-hidden",String(!ui("utilityDrawer").classList.contains("open")))});ui("drawerClose").addEventListener("click",()=>ui("utilityDrawer").classList.remove("open"));ui("shopShortcut").addEventListener("click",openShop);
 ui("questCollapse").addEventListener("click",()=>ui("questPanel").classList.toggle("collapsed"));ui("claimRewardBtn").addEventListener("click",()=>{if(state.quests.every(Boolean)){state.gold+=500;state.quests=[false,false,false,false];save();toast("일일 보상 +500G")}else toast("모든 미션을 완료하세요.")});ui("modalClose").addEventListener("click",closeModal);ui("modal").addEventListener("click",e=>{if(e.target===ui("modal"))closeModal()});

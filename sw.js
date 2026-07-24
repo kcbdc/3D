@@ -1,4 +1,4 @@
-const CACHE="komsco-latest-orthogonal-map-v10";
+const CACHE="komsco-dpad-fit-fix-v14";
 const STATIC=["./public/assets/world/world_exact_map.png","./public/assets/characters/hunmin.png","./public/assets/characters/daim.png","./public/assets/characters/sunsik.png"];
 self.addEventListener("install",e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(STATIC)).then(()=>self.skipWaiting())));
 self.addEventListener("activate",e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));

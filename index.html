@@ -9,7 +9,7 @@
   <meta name="screen-orientation" content="landscape">
   <title>KOMSCO Neon Farm City</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=latest-orthogonal-map-v10">
+  <link rel="stylesheet" href="./style.css?v=dpad-fit-fix-v14">
 </head>
 <body>
 <div id="orientationNotice">
@@ -85,14 +85,12 @@
   <button id="interactBtn" class="primary-button" type="button">상호작용</button>
 
   <nav id="dpad" aria-label="이동 방향키">
-    <button id="moveUp" type="button">▲</button>
-    <button id="moveLeft" type="button">◀</button>
-    <i></i>
-    <button id="moveRight" type="button">▶</button>
-    <button id="moveDown" type="button">▼</button>
+    <button id="moveUp" type="button" aria-label="위로 이동">▲</button>
+    <button id="moveLeft" type="button" aria-label="왼쪽으로 이동">◀</button>
+    <button id="autoBtn" type="button" aria-label="자동 이동 시작/취소">AUTO</button>
+    <button id="moveRight" type="button" aria-label="오른쪽으로 이동">▶</button>
+    <button id="moveDown" type="button" aria-label="아래로 이동">▼</button>
   </nav>
-  <button id="autoBtn" type="button">AUTO</button>
-  <button id="runBtn" type="button">RUN</button>
 
   <div id="toast" aria-live="polite"></div>
   <section id="modal" role="dialog" aria-modal="true">
@@ -104,6 +102,6 @@
 <script defer src="./src/engine/path-engine.js"></script>
 <script defer src="./src/game/game-systems.js"></script>
 <script defer src="./src/ui/orientation.js"></script>
-<script defer src="./game.js?v=latest-orthogonal-map-v10"></script>
+<script defer src="./game.js?v=dpad-fit-fix-v14"></script>
 </body>
 </html>

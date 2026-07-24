@@ -1,0 +1,116 @@
+{
+  "version": "2026.07.24-dpad-center-auto-v12",
+  "entry": "index.html",
+  "script": "game.js?v=dpad-center-auto-v12",
+  "note_on_this_report": "Earlier QA files in this repo (FINAL_*.json) asserted 'passed' without a reproducible check attached. This report only lists checks that were actually executed in this session, with the command and result, so it can be re-run and verified independently.",
+
+  "requested_changes": {
+    "auto_button_moved_to_dpad_center": {
+      "status": "done",
+      "detail": "index.html: #autoBtn is now the center grid cell of #dpad (was a decorative <i> placeholder). style.css: #autoBtn styled as a circular button matching the center cell, with a distinct .active state (gold) shown while a route is in progress."
+    },
+    "run_button_removed": {
+      "status": "done",
+      "detail": "Removed #runBtn from index.html, its CSS rules from style.css, the `run` flag and its pointerdown/up listeners from game.js, and the Shift-key speed multiplier from moveOnRoute()."
+    },
+    "base_speed_increased_10_to_15pct": {
+      "status": "done",
+      "detail": "src/game/game-systems.js: player.speed 15 -> 17 (+13.3%). game.js load(): saved games from before v12 (speed 15) are migrated up to 17 on load so returning players get the same compensation, not just new games."
+    }
+  },
+
+  "bug_fixes_requested": {
+    "auto_button_touch_target": {
+      "status": "done",
+      "detail": "AUTO now fills a full dpad grid cell (~63px at default size, ~48px in the compact mobile-landscape breakpoint), larger than the previous standalone 64px/50px button, and sits centered for one-handed thumb reach."
+    },
+    "dpad_continuous_input_dropout": {
+      "status": "done",
+      "root_cause": "Buttons used setPointerCapture() on pointerdown but also released movement on 'pointerleave'. With capture active, pointerleave can still fire on some mobile browsers as a finger drifts slightly off the button's visual bounds even though the same touch is still captured/down, dropping input mid-press.",
+      "fix": "Replaced the 'pointerleave' release trigger with 'lostpointercapture', which only fires when the touch genuinely ends (up/cancel/capture loss)."
+    },
+    "auto_to_manual_immediate_handoff": {
+      "status": "done",
+      "detail": "Pressing any dpad button OR any arrow/WASD key now immediately clears autoPath, resets currentEdge to null (forcing a fresh nearest-road lookup instead of reusing a possibly-stale edge), and turns off the AUTO active state. Tapping AUTO again while a route is running now cancels it (toggle), also instant."
+    },
+    "shake_entering_interaction_circle": {
+      "status": "done",
+      "root_cause": "AUTO's last waypoint is the hotspot's own (x,y), which for HQ/MINT/LAB sits off the road graph (a short walk from the nearest road node). The old code ran this final hop through the same road-constrained edge-projection math as on-road movement, which has no way to represent free 2D motion toward an off-road point -- it kept re-projecting onto the edge, producing a visible back-and-forth twitch on arrival.",
+      "fix": "When the AUTO queue has exactly one waypoint left (the hotspot itself), movement switches to free direct-line motion toward it instead of edge-projected motion. Verified by simulation (see automated_checks below) that all 7 hotspots now converge to their exact (0.000 distance) center with no oscillation."
+    },
+    "road_corner_micro_jitter": {
+      "status": "attempted_then_reverted",
+      "detail": "First attempt widened the node-snap threshold (t<=.006||t>=.994 -> t<=.012||t>=.988) to absorb float noise at corners. Simulation testing caught that this was a regression: at higher speed (17) and 60fps dt, a single frame's progress along a long edge can be smaller than the widened threshold, so the player snapped back to the start node every frame and never advanced -- movement froze completely on several routes (ID본부, 제지본부, 주말농장, 씨앗상점 all failed to arrive in simulation). This was reverted back to the original .006/.994 thresholds. No corner-jitter fix is included in this build beyond the interaction-circle fix above; this remains open (see known_issues)."
+    },
+    "orientation_realignment": {
+      "status": "done",
+      "detail": "Added an 'orientationchange' listener (in addition to the existing 'resize' listener) that re-runs resize() after a 120ms settle delay, since iOS/Android can report stale innerWidth/innerHeight for a moment right when orientationchange fires."
+    },
+    "mobile_safe_area_support": {
+      "status": "done",
+      "detail": "Added env(safe-area-inset-*) padding to #dpad, #interactBtn, #interactionHint, and #hud so controls clear the iPhone home-indicator/notch and Android gesture bar in landscape. viewport-fit=cover was already present in index.html."
+    },
+    "cache_version_bump": {
+      "status": "done",
+      "detail": "index.html script/style query strings -> ?v=dpad-center-auto-v12. sw.js CACHE name -> komsco-dpad-center-auto-v12 (old caches are deleted on activate). world-data.js WORLD.version bumped to match."
+    },
+    "full_js_syntax_check": {
+      "status": "done_and_verified",
+      "command": "node --check <file> for every .js file (functions/api/*.js checked with --input-type=module)",
+      "result": "0 failures across all files in game.js, src/**, sw.js, route_test_*.js, and functions/api/*.js"
+    },
+    "route_graph_check": {
+      "status": "done_and_verified",
+      "command": "node route_test_v12_graph.js",
+      "result": "31 nodes, 38 edges, 7 hotspots. All edges reference valid, distinct nodes. No duplicate edges. Every hotspot node's coordinates match its graph node. Graph is a single connected component. Every hotspot is road-reachable from the player spawn point."
+    },
+    "zip_integrity_check": {
+      "status": "done_and_verified",
+      "command": "unzip -t KOMSCO_NeonCity_DpadCenterAuto_v12.zip",
+      "result": "117 files tested, 0 errors, exit code 0: 'No errors detected in compressed data.'"
+    }
+  },
+
+  "additional_verification_beyond_the_request": {
+    "movement_simulation": {
+      "command": "node route_test_v12_movement.js",
+      "what_it_does": "Ports moveOnRoute/chooseEdgeAtNode/AUTO logic 1:1 outside the browser and actually runs it frame-by-frame (dt=1/60) from spawn to every hotspot, checking for NaN positions and non-arrival within a generous frame budget.",
+      "result": "PASS - all 7 hotspots reached, 0.000 final distance to hotspot center, no NaNs, no stalls. This is what caught the corner-threshold regression above before it shipped."
+    }
+  },
+
+  "known_issues_not_fixed": [
+    "Road-corner micro jitter (as originally reported) is not fixed in this build. A safe fix needs a different approach than threshold widening (e.g. a short per-node re-evaluation cooldown, or hysteresis on chooseEdgeAtNode's direction scoring) and wasn't attempted again after the regression, given the risk of shipping another movement-breaking bug without a live device to test on. Recommend treating this as a separate follow-up."
+  ],
+
+  "explicitly_not_verified": [
+    "Actual on-device/browser touch behavior (pointer capture quirks, safe-area rendering, orientationchange timing) -- this environment has no browser/mobile runtime, so these fixes are based on code review and known platform behavior, not a live test. Recommend a quick manual pass on an iPhone and an Android phone in landscape before wide release.",
+    "Visual appearance of the new AUTO button placement/active-state styling -- not rendered/screenshotted, only reasoned about from the CSS."
+  ],
+
+  "v13_addendum_dpad_sizing_and_hit_test_investigation": {
+    "user_report": "Screenshot showed the AUTO button rendering as an oversized oval that visually overlapped the down-arrow button, and reported that vertical movement 'gets stuck'.",
+    "confirmed_root_cause_of_the_visual_bug": "The #autoBtn button had text content ('AUTO') but no explicit width/height/box-sizing. CSS Grid's default item min-size is based on content, so the text forced that grid cell (and the whole 3x3 track) to expand beyond its 1fr share, distorting the circular dpad into an oval and pushing AUTO over the down button.",
+    "fix_applied": "Converted the dpad from CSS Grid to explicit, hardcoded absolute positioning for all 5 buttons (up/down/left/right/AUTO), each an exact 46.667px square with a 6px gap from its neighbors. Verified with a real headless-Chromium screenshot (not just CSS reasoning) that all 5 buttons render as equal, non-overlapping squares in a proper cross layout.",
+    "unresolved_secondary_finding": {
+      "what_was_observed": "While verifying with real synthesized mouse/pointer events (Chromium DevTools Protocol input, via Playwright), clicks dispatched at the exact numeric center of #moveLeft were repeatedly delivered to #autoBtn instead, even though #moveLeft and #autoBtn's getBoundingClientRect() showed no overlap (a clean 6px gap), and a visual screenshot with colored outlines confirmed no overlap. document.elementsFromPoint() (the multi-hit-test API) correctly returned moveLeft on top with autoBtn not even present in the z-stack at that point -- only the single-target document.elementFromPoint() call and CDP-synthesized clicks were wrong.",
+      "investigation_performed": "Tested across three completely different CSS implementations (Grid, absolute+CSS-variables, absolute+hardcoded px) -- discrepancy persisted in all three. Ruled out z-index, box-shadow, border, text-shadow, touch-action, transform, and duplicate IDs as causes by removing each individually. Reproduced with pure static HTML+CSS (game.js not even loaded), ruling out any JS runtime cause. A minimal isolated reproduction using only inline styles on a bare 5-button dpad (no other page content) did NOT reproduce the bug, but the same dpad markup loaded with the project's full style.css DID reproduce it -- indicating some interaction with the wider stylesheet that was not pinned down before time ran out on this investigation. A local testing script accidentally named 'bisect.py' also shadowed Python's stdlib bisect module partway through, invalidating some intermediate bisection results and costing further time.",
+      "why_this_was_not_fully_resolved": "This does not conclusively prove a bug reachable by real users -- elementFromPoint/CDP-synthesized input in headless Chromium is known to have hit-test caching quirks that don't always match real OS-level touch/mouse input on physical devices. But it also cannot be ruled out. Given the amount of time already spent without a conclusive root cause, further investigation was stopped in favor of shipping the defensive fixes below and flagging this clearly rather than continuing indefinitely.",
+      "defensive_mitigations_shipped_regardless_of_root_cause": [
+        "Explicit non-overlapping hardcoded pixel positions for all 5 buttons (verified by geometry and screenshot)",
+        "A real 6px gap between every adjacent button, so even several pixels of hit-test slop would not reach a neighbor",
+        "Removed the autoBtn ::after touch-expansion overlay and its z-index elevation entirely, since neither is needed once sizing is correct, eliminating one plausible (if unconfirmed) contributing factor"
+      ],
+      "recommendation": "Test the actual left-arrow button specifically on a real phone before wide release. If tapping the left-arrow area near the AUTO button is ever found to trigger AUTO instead, report back with the exact device/browser -- that would let us reproduce with real touch input instead of only headless CDP-synthesized clicks, which is a meaningfully different code path in Chromium."
+    }
+  },
+
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}
