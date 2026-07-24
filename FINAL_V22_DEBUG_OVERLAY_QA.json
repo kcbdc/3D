@@ -1,0 +1,30 @@
+{
+  "version": "2026.07.24-debug-overlay-v22",
+  "context": "User sent a screen recording (Samsung Internet, Galaxy Note 20 Ultra) and a browser-info screenshot showing vertical movement still not working. This environment cannot play video files or reliably read pixel-level UI content from images/frames, so rather than keep guessing at browser-specific gesture bugs without confirmation, this build adds an on-screen diagnostic overlay to get hard, precise data straight from the affected device.",
+
+  "what_was_attempted_before_this": "v20/v21 already added overscroll-behavior:none, touch-action:none on html/body/#gameShell, touchmove prevention on dpad buttons, and touch-event fallbacks alongside pointer events -- all well-reasoned fixes for known Android WebView gesture-hijacking categories, but none could be confirmed against the actual device since this environment has no access to Samsung Internet.",
+
+  "diagnostic_overlay_added": {
+    "how_to_use": "Open the game, then triple-tap the KOMSCO logo on the loading screen (or load the page with ?debug=1 appended to the URL, e.g. https://your-site.pages.dev/?debug=1). A small green readout appears in the top-right corner showing, updated every frame: current orientation (portrait-rotated vs landscape), the game's logical width/height, live player x/y coordinates, the current true/false state of all 4 dpad directions, and -- most importantly -- a running count of pointerdown vs touchstart events actually received by each of the 4 buttons.",
+    "why_this_matters": "This pinpoints exactly which layer the bug is in: (1) if the event counts for up/down stay at 0 while pressing, no touch event is reaching the button at all (a browser/gesture-interception issue, confirming the overscroll/touch-action theory). (2) if counts increase but the dpad state readout never flips to 1, the press is registering but something is clearing it immediately (a different bug, e.g. a stray pointerup/touchend firing right after). (3) if the state flips correctly but player x/y never changes while held, the bug is in the movement math itself, not input handling at all.",
+    "request": "Please record the screen again with the overlay visible (triple-tap the logo first) while reproducing the vertical-movement issue, or just read out the numbers directly. That will let the next fix target the actual confirmed cause instead of another best-guess."
+  },
+
+  "regression_suite_rerun": {
+    "js_syntax_check": "pass",
+    "json_validity": "pass",
+    "road_graph_integrity": "pass, 27 nodes / 35 edges / 7 hotspots",
+    "auto_navigation_simulation": "pass, all 7 hotspots reached, no NaNs/stalls",
+    "headless_browser_playthrough": "pass, 0 console errors/warnings",
+    "debug_overlay_verified": "confirmed working in a real headless-browser test: toggled on via ?debug=1, correctly showed dpad state flipping to 1 and player.y decreasing when moveUp was pressed via a dispatched pointerdown event"
+  },
+
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}

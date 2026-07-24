@@ -124,3 +124,8 @@ html,body,#gameShell{min-width:1px;min-height:1px}
     transform:rotate(90deg)!important;
   }
 }
+
+/* Diagnostic overlay for tracking down the reported vertical-movement bug on real devices.
+   Hidden by default; toggled via triple-tap on the KOMSCO loading logo, or ?debug=1 in the URL. */
+#debugOverlay{display:none;position:absolute;z-index:9999;top:calc(4px + env(safe-area-inset-top,0px));right:calc(4px + env(safe-area-inset-right,0px));margin:0;padding:6px 8px;font:10px/1.4 monospace;color:#7fffb0;background:#000c;border:1px solid #4fff9a55;border-radius:6px;pointer-events:none;white-space:pre;max-width:46vw}
+#debugOverlay.show{display:block}

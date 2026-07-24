@@ -337,11 +337,14 @@ function load(){
  if(!state.player.speed||state.player.speed<17)state.player.speed=17; // migrate pre-v12 saves to the RUN-removal baseline speed
 }
 function buildCards(){const desc={hunmin:"업무와 농장 성장이 균형 잡힌 전략가",daim:"업무 골드 보상이 20% 증가하는 탐색관",sunsik:"이동 속도가 15% 빠른 호위무사"};ui("characterCards").innerHTML=Object.entries(CHARS).map(([id,c])=>`<article class="character-card" data-char="${id}"><img src="${CHAR_BASE+c.img}" alt="${c.name}"><div class=card-copy><h3>${c.name}</h3><b>${c.role}</b><p>${desc[id]}</p></div></article>`).join("");document.querySelectorAll("[data-char]").forEach(card=>card.addEventListener("click",()=>{selected=card.dataset.char;document.querySelectorAll("[data-char]").forEach(x=>x.classList.toggle("selected",x===card));ui("startBtn").disabled=false}))}
+const dpadDebug={up:{pd:0,ts:0,tt:0},down:{pd:0,ts:0,tt:0},left:{pd:0,ts:0,tt:0},right:{pd:0,ts:0,tt:0}};
 function bindDpad(id,key){
  const el=ui(id);
  if(!el){console.warn(`이동 버튼 누락: ${id}`);return;}
  const down=e=>{
    e.preventDefault();
+   if(e.type==="pointerdown")dpadDebug[key].pd++;
+   if(e.type==="touchstart")dpadDebug[key].tt++;
    if(autoPath.length){autoPath=[];currentEdge=null;setAutoActive(false)} // manual input takes over instantly, no stale route/edge
    dpad[key]=true;el.classList.add("pressed");el.setPointerCapture?.(e.pointerId)
  };
@@ -407,13 +410,43 @@ ui("fatalReload")?.addEventListener("click",()=>{
 window.addEventListener("error",e=>showFatal(e.error||e.message,e.filename||"",e.lineno||0,e.colno||0));
 window.addEventListener("unhandledrejection",e=>showFatal(e.reason));
 
+let debugOn=new URLSearchParams(location.search).has("debug");
+function updateDebugOverlay(){
+  const el=ui("debugOverlay");
+  if(!el)return;
+  el.classList.toggle("show",debugOn);
+  if(!debugOn)return;
+  const isPortrait=matchMedia("(orientation:portrait)").matches;
+  el.textContent=
+`orientation: ${isPortrait?"portrait(rotated)":"landscape"}
+game W,H: ${W},${H}
+player: ${state.player.x.toFixed(2)}, ${state.player.y.toFixed(2)}
+dpad state: ↑${dpad.up?1:0} ↓${dpad.down?1:0} ←${dpad.left?1:0} →${dpad.right?1:0}
+events(pointerdown/touchstart):
+ ↑ ${dpadDebug.up.pd}/${dpadDebug.up.tt}  ↓ ${dpadDebug.down.pd}/${dpadDebug.down.tt}
+ ← ${dpadDebug.left.pd}/${dpadDebug.left.tt}  → ${dpadDebug.right.pd}/${dpadDebug.right.tt}
+autoPath: ${autoPath.length}`;
+}
 function loop(now){
  const dt=Math.min(.04,Math.max(0,(now-last)/1000));
  last=now;
- if(!document.hidden){update(dt);draw();}
+ if(!document.hidden){update(dt);draw();updateDebugOverlay();}
  requestAnimationFrame(loop);
 }
 document.addEventListener("visibilitychange",()=>{last=performance.now();});
+(()=>{
+  // Triple-tap the KOMSCO loading logo to toggle the diagnostic overlay on a real device
+  // without needing a URL param or dev tools.
+  const brand=document.querySelector(".brand");
+  if(!brand)return;
+  let taps=0,tapTimer=null;
+  brand.addEventListener("click",()=>{
+    taps++;
+    clearTimeout(tapTimer);
+    tapTimer=setTimeout(()=>taps=0,600);
+    if(taps>=3){debugOn=!debugOn;taps=0;updateDebugOverlay();}
+  });
+})();
 (async()=>{
  try{
    load();buildCards();resize();

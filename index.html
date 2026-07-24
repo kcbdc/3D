@@ -9,7 +9,7 @@
   <meta name="screen-orientation" content="landscape">
   <title>KOMSCO Neon Farm City</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=overscroll-fix-v21">
+  <link rel="stylesheet" href="./style.css?v=debug-overlay-v22">
 </head>
 <body>
 <div id="orientationNotice">
@@ -93,6 +93,7 @@
   </nav>
 
   <div id="toast" aria-live="polite"></div>
+  <pre id="debugOverlay" aria-hidden="true"></pre>
   <section id="modal" role="dialog" aria-modal="true">
     <div class="modal-card"><button id="modalClose" type="button">×</button><div id="modalBody"></div></div>
   </section>
@@ -102,6 +103,6 @@
 <script defer src="./src/engine/path-engine.js"></script>
 <script defer src="./src/game/game-systems.js"></script>
 <script defer src="./src/ui/orientation.js"></script>
-<script defer src="./game.js?v=overscroll-fix-v21"></script>
+<script defer src="./game.js?v=debug-overlay-v22"></script>
 </body>
 </html>
