@@ -102,14 +102,25 @@ function moveOnRoute(dx,dy,dt){
  dx/=magnitude;dy/=magnitude;
  if(!currentEdge)currentEdge=nearestEdge();
  if(!currentEdge)return;
- // Re-evaluate the best edge for the CURRENT input every frame the player is sitting at a
- // node (not just once, at the moment they first arrived) -- see fix note above moveOnRoute.
- const tNow=edgeProjection(currentEdge,state.player.x,state.player.y).t;
- if(tNow<=.01||tNow>=.99){
-   const nodeId=tNow<=.01?currentEdge[0]:currentEdge[1];
-   const next=chooseEdgeAtNode(nodeId,dx,dy,currentEdge);
-   if(next&&edgeKey(next)!==edgeKey(currentEdge))currentEdge=next;
+
+ // Junction detection uses an ABSOLUTE world-distance radius, not a percentage of the current
+ // edge's length. A percentage-based zone gives a much narrower (and easier to overshoot past)
+ // window on shorter road segments than on longer ones -- which is exactly why some locations
+ // could feel randomly harder to walk into than others depending on which road leads there.
+ // A fixed radius feels the same everywhere on the map.
+ const CAPTURE_RADIUS=2.2,SNAP_RADIUS=.08;
+ function tryBranch(){
+   const [a,b]=currentEdge,A=WORLD.nodes[a],B=WORLD.nodes[b];
+   const distA=Math.hypot(state.player.x-A[0],state.player.y-A[1]);
+   const distB=Math.hypot(state.player.x-B[0],state.player.y-B[1]);
+   if(distA<=CAPTURE_RADIUS||distB<=CAPTURE_RADIUS){
+     const nodeId=distA<=distB?a:b;
+     const next=chooseEdgeAtNode(nodeId,dx,dy,currentEdge);
+     if(next&&edgeKey(next)!==edgeKey(currentEdge))currentEdge=next;
+   }
  }
+ tryBranch();
+
  const info=edgeInfo(currentEdge);
  const sign=(dx*info.tx+dy*info.ty)>=0?1:-1;
  const speed=state.player.speed*CHARS[state.character].speed;
@@ -119,16 +130,14 @@ function moveOnRoute(dx,dy,dt){
  const desired=info.tx*sign<0?-1:1;
  state.player.dirLerp=(state.player.dirLerp??state.player.dir??1)+(desired-(state.player.dirLerp??state.player.dir??1))*Math.min(1,dt*9);
  state.player.dir=state.player.dirLerp<0?-1:1;
- if(projected.t<=.05||projected.t>=.95){
-   const nodeId=projected.t<=.05?currentEdge[0]:currentEdge[1];
-   const next=chooseEdgeAtNode(nodeId,dx,dy,currentEdge);
-   if(next&&edgeKey(next)!==edgeKey(currentEdge)){
-     currentEdge=next;
-   }else if(projected.t<=.006||projected.t>=.994){
-     const node=WORLD.nodes[nodeId];
-     state.player.x=node[0];state.player.y=node[1];
-   }
- }
+
+ tryBranch(); // re-check after moving too, so a fresh arrival within the radius this frame still gets a chance to branch
+
+ const [a,b]=currentEdge,A=WORLD.nodes[a],B=WORLD.nodes[b];
+ const distA=Math.hypot(state.player.x-A[0],state.player.y-A[1]);
+ const distB=Math.hypot(state.player.x-B[0],state.player.y-B[1]);
+ if(distA<=SNAP_RADIUS){state.player.x=A[0];state.player.y=A[1]}
+ else if(distB<=SNAP_RADIUS){state.player.x=B[0];state.player.y=B[1]}
 }
 function draw(){
  const fallback=ctx.createLinearGradient(0,0,0,H);
