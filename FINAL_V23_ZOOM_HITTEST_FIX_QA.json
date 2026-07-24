@@ -1,0 +1,40 @@
+{
+  "version": "2026.07.24-zoom-hittest-fix-v23",
+  "context": "User sent a 39-second screen recording (Samsung Internet, Note 20 Ultra) with the v22 diagnostic overlay visible, plus a report that the hamburger-menu popup gets clipped on screen.",
+
+  "how_the_recording_was_analyzed": "This environment can't play video, so frames were extracted at 2fps and the diagnostic overlay region was read via OCR (tesseract) across the whole recording. This produced hard, quantitative data instead of another guess.",
+
+  "confirmed_root_cause_vertical_movement": {
+    "hard_data_from_the_recording": "The overlay's per-button event counters showed the UP arrow stuck at 0/0 (zero pointerdown, zero touchstart events) for the first ~23 seconds of the recording, while in that same window DOWN climbed steadily from 14 to 67, LEFT reached 7-8, and RIGHT reached 2-3. Player y-coordinate also visibly changed early on (40.16 -> 44.40 -> 64.92), confirming vertical movement *can* work, but the UP button specifically was not receiving touch input at all for most of the session (it only started registering events after ~30s).",
+    "root_cause": "#dpad (and several other HUD elements) were scaled for small screens via transform:scale(var(--ui-scale)) with transform-origin:left bottom. CSS transform:scale is a paint-only operation -- it does not change layout -- and some Chromium-based mobile browsers (Samsung Internet among them) have had inconsistent synchronization between a scaled element's visual position and its actual hit-test region, with the mismatch growing with distance from the transform-origin. #moveUp sits at the far corner of the dpad circle from the bottom-left origin, i.e. the point that moves the most during the scale -- exactly matching the data (moveUp broken, moveDown/moveLeft closer to the origin working normally, moveRight partially affected).",
+    "fix": "Replaced transform:scale(var(--ui-scale)) with zoom:var(--ui-scale) on all 6 UI-scaled elements (#dpad, #interactBtn, .hero-chip, .resources, .top-icons, #questPanel). zoom is a real layout-affecting property (not just a paint transform), so hit-testing is computed directly against the already-scaled box -- there's no separate 'pre-scale' coordinate system left over to get out of sync.",
+    "verified": "Re-ran the exact hit-test check (visual center of each dpad button vs document.elementFromPoint() at that point) at a small viewport matching the user's reported game size (--ui-scale computed to 0.947-0.884 depending on exact viewport) -- all 5 buttons (up/down/left/right/AUTO) now hit-test correctly with zoom, where they previously could not be cross-checked against transform's known Samsung Internet issue without the OCR data.",
+    "not_100_percent_certain": "This is the most concrete, data-backed explanation found and directly matches the asymmetric failure pattern in the recording, but it wasn't possible to reproduce the original transform:scale bug in this Chromium-based test environment (Samsung Internet's rendering engine has diverged from stock Chromium in ways that can't be fully replicated here). Please test again -- if UP still doesn't register reliably, the event counters in the debug overlay (triple-tap the KOMSCO logo, or ?debug=1) will show immediately whether this fixed it or not."
+  },
+
+  "hamburger_menu_popup_clipped": {
+    "status": "done",
+    "root_cause": ".utility-drawer (opened by the hamburger/menu button) had a fixed width but no max-height or overflow handling at all. Its contents (header, a region-preview section with a 94px image, a seed-shop section, an inventory section) add up to well over 400px, which doesn't fit within a short logical viewport like the user's (~336px) -- it was simply cut off at the bottom edge of the screen with no way to see or scroll to the rest.",
+    "fix": "Added max-height (calc(var(--game-h,380px) - 95px), with a matching adjustment for the compact-w breakpoint's different top offset) and overflow-y:auto to .utility-drawer.",
+    "verified": "Tested at the user's approximate viewport size (800x360): the drawer's outer box now ends at y=348 (fits within the 360px-tall viewport), while its content (scrollHeight 436px) exceeds the visible box height, confirming it now scrolls internally instead of being clipped off-screen."
+  },
+
+  "regression_suite_rerun": {
+    "js_syntax_check": "pass",
+    "json_validity": "pass",
+    "road_graph_integrity": "pass",
+    "auto_navigation_simulation": "pass, all 7 hotspots, no NaNs/stalls",
+    "headless_browser_playthrough": "pass, 0 console errors",
+    "dpad_hit_test_after_zoom_fix": "pass, all 5 buttons hit-test correctly at their visual centers under --ui-scale ~0.88-0.95",
+    "utility_drawer_fit_after_fix": "pass, fits within an 800x360 viewport and scrolls internally when content overflows"
+  },
+
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}
