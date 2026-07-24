@@ -5,12 +5,12 @@ const ctx=canvas?.getContext("2d",{alpha:false,desynchronized:true})||canvas?.ge
 if(!canvas||!ctx)throw new Error("Canvas 2D를 초기화할 수 없습니다.");
 const WORLD=KOMSCO.WORLD,PATH=KOMSCO.PathEngine,SYS=KOMSCO.GameSystems;
 const CHARS=SYS.characters,SEEDS=SYS.seeds,CHAR_BASE="./public/assets/characters/";
-const DAY="./public/assets/world/world_exact_map.png",NIGHT="./public/assets/world/world_exact_map.png";
+const DAY="./public/assets/world/world_day.png",NIGHT="./public/assets/world/world_exact_map.png";
 const DPR=Math.min(devicePixelRatio||1, innerWidth<900?1.35:1.75);
 let W=0,H=0,bgRect={x:0,y:0,w:1,h:1},bgDay,bgNight,last=performance.now(),selected=null,started=false,autoPath=[],currentEdge=null,lastUiUpdate=0,resizeSettleTimer=null;
 const images={},keys={},dpad={up:false,down:false,left:false,right:false};let state=SYS.newState();
 
-const isDay=()=>{const h=new Date().getHours();return h>=6&&h<18};
+const isDay=()=>{const h=new Date().getHours();return h>=5&&h<19};
 const activeBg=()=>isDay()?bgDay:bgNight;
 function applyUiScale(){
  // Auto-shrinks HUD/dpad/interact chrome to fit small mobile screens instead of overflowing them.

@@ -1,9 +1,9 @@
 window.KOMSCO=window.KOMSCO||{};
 window.KOMSCO.WORLD={
- version:"dpad-fit-fix-v15",roadWidth:2.6,
+ version:"dpad-fit-fix-v17",roadWidth:2.6,
  nodes:{
   OT_L:[5.4,5.2],OT_C1:[37.9,5.2],OT_C2:[67.3,5.2],OT_R:[96.6,5.2],
-  OB_L:[5.4,96.2],OB_C1:[37.9,96.2],OB_C2:[67.3,96.2],OB_R:[96.6,96.2],
+  OB_L:[5.4,96.2],OB_R:[96.6,96.2],
   H1_L:[5.4,36.2],H1_HQ:[22.20,36.2],H1_C1:[37.9,36.2],
   H1_MINT:[51.63,36.2],H1_C2:[67.3,36.2],H1_LAB:[79.30,36.2],H1_R:[96.6,36.2],
   H2_L:[5.4,69.2],H2_ID:[20.96,69.2],H2_C1:[37.9,69.2],
@@ -16,7 +16,7 @@ window.KOMSCO.WORLD={
   ["OT_L","OT_C1"],["OT_C1","OT_C2"],["OT_C2","OT_R"],
   ["OT_L","H1_L"],["H1_L","H2_L"],["H2_L","OB_L"],
   ["OT_R","H1_R"],["H1_R","H2_R"],["H2_R","OB_R"],
-  ["OB_L","OB_C1"],["OB_C1","OB_C2"],["OB_C2","OB_R"],
+  ["OB_L","H3_C1"],["H3_C2","OB_R"],
   ["H1_L","H1_HQ"],["H1_HQ","H1_C1"],["H1_C1","H1_MINT"],
   ["H1_MINT","H1_C2"],["H1_C2","H1_LAB"],["H1_LAB","H1_R"],
   ["H2_L","H2_ID"],["H2_ID","H2_C1"],["H2_C1","H2_FARM"],
