@@ -355,6 +355,7 @@ function bindDpad(id,key){
  // drop pointerdown/up on some buttons but not others -- touch events are the more universally
  // reliable API to layer on top as a safety net.
  el.addEventListener("touchstart",down,{passive:false});
+ el.addEventListener("touchmove",e=>e.preventDefault(),{passive:false});
  el.addEventListener("touchend",up,{passive:false});
  el.addEventListener("touchcancel",up,{passive:false});
 }

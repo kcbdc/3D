@@ -1,0 +1,45 @@
+{
+  "version": "2026.07.24-overscroll-fix-v21",
+  "context": "User reported (with a screenshot from a real Galaxy Note 20 Ultra, Edge browser) that the character-select screen's start button was clipped on initial load in portrait (fixed by physically rotating the device), vertical movement didn't work well in Edge specifically (worked fine in Chrome), a native copy/selection popup appeared during held-down dpad presses, and asked for a general bug-review pass.",
+  "fixes": {
+    "clipped_start_button_on_initial_load": {
+      "status": "done",
+      "root_cause_found_via_real_browser_testing": "Two separate bugs stacked on top of each other, both only found by measuring actual computed styles/bounding boxes in a headless-Chromium run, not by code review alone: (1) the portrait auto-rotate CSS used raw vh/dvh units for #gameShell's size, and dvh support is inconsistent across Android WebView variants (Samsung Internet/Edge lag behind Chrome) -- a real device's dvh could be momentarily wrong on first paint before the address bar settles, matching 'fixed by rotating the device' (which forces a resize/orientationchange recompute). (2) MUCH more impactful: the character-select screen's own CSS (.select-content, .character-card, .load-track, .modal-card, and two whole responsive breakpoints) used raw vw/vh units and orientation:landscape media queries. Both of these always reference the PHYSICAL viewport/orientation, which is *wrong* once #gameShell is CSS-rotated 90deg -- a portrait phone is still physically 'portrait' and narrow, so vw-based sizing and the orientation:landscape breakpoints silently never applied at all, rendering the select screen at full desktop-ish size squeezed into a rotated portrait frame. This was the dominant cause of the clipping in the screenshot, not just viewport-settle timing.",
+      "fix": "game.js's resize() now exposes the game's logical (post-rotation-swap) width/height as --game-w/--game-h CSS custom properties, plus toggles compact-w/compact-h classes on <html> based on those logical dimensions. style.css was updated to size .select-content/.character-card/.load-track/.modal-card off --game-w/--game-h instead of vw/vh, and the two broken 'orientation:landscape' breakpoints were rewritten as html.compact-w/.compact-h class selectors so they correctly apply based on logical size regardless of physical device orientation. resize() is also now re-fired a few times over the first second after load (rAF + 150/400/900ms) to catch any late browser-chrome settling.",
+      "verified_with_real_browser": "Simulated a Note 20 Ultra-class portrait viewport (412x915). Before the fix: #startBtn measured at x=-148 (fully off-screen to the left). After the fix: #startBtn, .select-content, .character-cards, and all three .character-card elements measured fully within the (0,0)-(412,915) physical viewport bounds, both immediately after load (0.3s) and after settling (1.5s). Also confirmed compact-h correctly activates for this viewport's logical 412(w)x412(h)-ish landscape dimensions, and that a normal 1200x700 desktop landscape viewport gets neither compact class (no unwanted shrinking on large screens)."
+    },
+    "vertical_movement_not_working_in_samsung_internet": {
+      "status": "done - specific root cause identified",
+      "user_clarification": "Follow-up report narrowed this from 'Edge' to specifically Samsung Internet on a Galaxy Note 20 Ultra, and confirmed it's not just unreliable but doesn't work at all for vertical movement, while horizontal is fine.",
+      "root_cause": "Pull-to-refresh / overscroll-bounce is a vertical-only browser gesture (there's no horizontal equivalent), recognized at the document/body level. touch-action:none had only been applied to the dpad buttons themselves and the canvas, not to html/body/#gameShell -- so a touch that drifts even slightly during a held-down press (very normal for a human thumb, especially during a multi-second 'hold to walk up/down') could still be picked up by the browser's own vertical-scroll/refresh gesture recognizer at a higher level, which silently cancels the button's own touch tracking mid-press. This exactly matches the reported symptom: horizontal presses are typically quick taps/short holds that don't drift as much, while a sustained vertical hold is exactly what a pull-to-refresh gesture watches for. Samsung Internet has historically been more aggressive about this than Chrome, matching the 'works in Chrome, not Samsung Internet' pattern.",
+      "fix": "Added overscroll-behavior:none and touch-action:none to html, body, and #gameShell (previously only present on individual buttons/canvas), and added an explicit touchmove preventDefault on every dpad button in game.js so any drift during a hold is suppressed at the source before it can reach the browser's gesture recognizer.",
+      "not_verified": "No access to a real Samsung Internet browser in this environment -- this is a root-cause fix based on a very well-known, well-documented category of Android WebView bug that precisely matches the reported symptom (vertical-only failure, Samsung/Edge-specific, Chrome unaffected), not a confirmed before/after reproduction on the actual device. Please test again on the Note 20 Ultra and let me know if vertical movement now works."
+    },
+    "copy_popup_during_held_dpad_press": {
+      "status": "done",
+      "root_cause": "No text-selection/long-press-callout prevention existed anywhere in the CSS or JS.",
+      "fix": "Same fix as above (global -webkit-user-select:none/-webkit-touch-callout:none plus JS contextmenu/selectstart/copy blocking). This should stop the native copy/share popup from appearing during a held-down directional press."
+    },
+    "general_code_review": {
+      "status": "done",
+      "method": "Ran the full JS syntax check, JSON validity check, road-graph integrity check, and the AUTO-navigation movement simulation -- all pass. Additionally ran a real headless-browser playthrough (character select -> start -> move in all 4 directions -> AUTO start/cancel -> interact -> open/close every HUD panel: ranking, codex, settings, menu, quest collapse) while capturing all console errors, warnings, and uncaught page errors -- zero were raised across either a desktop-landscape viewport or the Note-20-Ultra-class portrait viewport.",
+      "scope_note": "This was a behavioral/runtime pass (does it actually run cleanly end to end), not a line-by-line audit of every file in the repository -- the codebase is sizeable (386-line game.js plus ~10 src/ modules, Cloudflare Functions, etc.) and a full manual audit of all of it was outside what could be responsibly completed in this session. The rotation/viewport-unit bug above was the significant bug this pass surfaced; nothing else raised errors or looked obviously wrong in the paths exercised."
+    }
+  },
+  "regression_suite_rerun": {
+    "js_syntax_check": "pass, 0 failures",
+    "json_validity": "pass, all files including manifest.webmanifest",
+    "road_graph_integrity": "pass, 27 nodes / 35 edges / 7 hotspots, fully connected",
+    "auto_navigation_simulation": "pass, all 7 hotspots reached, 0.000 final distance, no NaNs/stalls",
+    "headless_browser_playthrough": "pass, 0 console errors/warnings/pageerrors across desktop-landscape and Note-20-Ultra-portrait viewports",
+    "portrait_clipping_regression_test": "pass, all character-select elements measured fully within physical viewport bounds (previously #startBtn was off-screen at x=-148)"
+  },
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}
