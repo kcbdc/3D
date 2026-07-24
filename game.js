@@ -60,7 +60,7 @@ function chooseEdgeAtNode(nodeId,inputX,inputY,previousEdge){
    const score=inputX*(vx/len)+inputY*(vy/len)-penalty;
    if(score>bestScore){bestScore=score;best=edge}
  }
- return bestScore>-.15?best:null;
+ return bestScore>.08?best:null;
 }
 function moveOnRoute(dx,dy,dt){
  const magnitude=Math.hypot(dx,dy);if(magnitude<.05)return;
@@ -76,15 +76,13 @@ function moveOnRoute(dx,dy,dt){
  state.player.dirLerp=(state.player.dirLerp??state.player.dir??1)+(desired-(state.player.dirLerp??state.player.dir??1))*Math.min(1,dt*9);
  state.player.dir=state.player.dirLerp<0?-1:1;
  if(projected.t<=.05||projected.t>=.95){
-   const nodeId=projected.t<=.05?currentEdge[0]:currentEdge[1],node=WORLD.nodes[nodeId];
-   const distToNode=Math.hypot(projected.x-node[0],projected.y-node[1]);
+   const nodeId=projected.t<=.05?currentEdge[0]:currentEdge[1];
    const next=chooseEdgeAtNode(nodeId,dx,dy,currentEdge);
-   if(next){
-     if(distToNode<.35){state.player.x=node[0];state.player.y=node[1];}
-     currentEdge=next;
-   }else if(projected.t<=.006||projected.t>=.994){
-     state.player.x=node[0];state.player.y=node[1];
-   }
+   if(next)currentEdge=next;
+ }
+ if(projected.t<=.006||projected.t>=.994){
+   const nodeId=projected.t<=.006?currentEdge[0]:currentEdge[1],node=WORLD.nodes[nodeId];
+   state.player.x=node[0];state.player.y=node[1];
  }
 }
 function draw(){

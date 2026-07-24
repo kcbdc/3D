@@ -1,16 +1,16 @@
 window.KOMSCO=window.KOMSCO||{};
 window.KOMSCO.WORLD={
- version:"latest-orthogonal-map-v10",roadWidth:2.6,
+ version:"dpad-fit-fix-v15",roadWidth:2.6,
  nodes:{
-  OT_L:[3.4,5.2],OT_C1:[35.6,5.2],OT_C2:[65.1,5.2],OT_R:[96.6,5.2],
-  OB_L:[3.4,96.2],OB_C1:[35.6,96.2],OB_C2:[65.1,96.2],OB_R:[96.6,96.2],
-  H1_L:[3.4,36.2],H1_HQ:[22.20,36.2],H1_C1:[35.6,36.2],
-  H1_MINT:[51.63,36.2],H1_C2:[65.1,36.2],H1_LAB:[79.30,36.2],H1_R:[96.6,36.2],
-  H2_L:[3.4,69.2],H2_ID:[20.96,69.2],H2_C1:[35.6,69.2],
-  H2_FARM:[51.95,69.2],H2_C2:[65.1,69.2],H2_PAPER:[79.88,69.2],H2_R:[96.6,69.2],
-  H3_L:[3.4,96.2],H3_SHOP:[20.05,96.2],H3_C1:[35.6,96.2],H3_C2:[65.1,96.2],H3_R:[96.6,96.2],
+  OT_L:[5.4,5.2],OT_C1:[37.9,5.2],OT_C2:[67.3,5.2],OT_R:[96.6,5.2],
+  OB_L:[5.4,96.2],OB_C1:[37.9,96.2],OB_C2:[67.3,96.2],OB_R:[96.6,96.2],
+  H1_L:[5.4,36.2],H1_HQ:[22.20,36.2],H1_C1:[37.9,36.2],
+  H1_MINT:[51.63,36.2],H1_C2:[67.3,36.2],H1_LAB:[79.30,36.2],H1_R:[96.6,36.2],
+  H2_L:[5.4,69.2],H2_ID:[20.96,69.2],H2_C1:[37.9,69.2],
+  H2_FARM:[51.95,69.2],H2_C2:[67.3,69.2],H2_PAPER:[79.88,69.2],H2_R:[96.6,69.2],
+  H3_L:[5.4,96.2],H3_SHOP:[20.05,96.2],H3_C1:[37.9,96.2],H3_C2:[67.3,96.2],H3_R:[96.6,96.2],
   HQ:[22.20,35.06],MINT:[51.63,35.06],LAB:[79.30,35.06],
-  ID:[20.96,65.04],PAPER:[79.88,65.04],FARM:[51.95,68.56],SHOP:[20.05,91.41]
+  FARM:[51.95,68.56]
  },
  edges:[
   ["OT_L","OT_C1"],["OT_C1","OT_C2"],["OT_C2","OT_R"],
@@ -25,17 +25,17 @@ window.KOMSCO.WORLD={
   ["OT_C2","H1_C2"],["H1_C2","H2_C2"],["H2_C2","H3_C2"],
   ["H3_L","H3_SHOP"],["H3_SHOP","H3_C1"],["H3_C1","H3_C2"],["H3_C2","H3_R"],
   ["H1_HQ","HQ"],["H1_MINT","MINT"],["H1_LAB","LAB"],
-  ["H2_ID","ID"],["H2_PAPER","PAPER"],["H2_FARM","FARM"],["H3_SHOP","SHOP"]
+  ["H2_FARM","FARM"],
  ],
  bridgeEdges:[],waterZones:[],
  hotspots:[
   {node:"HQ",x:22.20,y:35.06,r:3.2,label:"본사",type:"work",reward:150,color:"#32c9ff"},
   {node:"MINT",x:51.63,y:35.06,r:3.2,label:"화폐본부",type:"work",reward:170,color:"#a34cff"},
   {node:"LAB",x:79.30,y:35.06,r:3.2,label:"기술연구원",type:"work",reward:160,color:"#54ed55"},
-  {node:"ID",x:20.96,y:65.04,r:3.2,label:"ID본부",type:"work",reward:140,color:"#32c9ff"},
-  {node:"PAPER",x:79.88,y:65.04,r:3.2,label:"제지본부",type:"work",reward:130,color:"#54ed55"},
+  {node:"H2_ID",x:20.96,y:69.20,r:3.4,label:"ID본부",type:"work",reward:140,color:"#32c9ff"},
+  {node:"H2_PAPER",x:79.88,y:69.20,r:3.4,label:"제지본부",type:"work",reward:130,color:"#54ed55"},
   {node:"FARM",x:51.95,y:68.56,r:3.7,label:"주말농장",type:"farm",color:"#fff17a"},
-  {node:"SHOP",x:20.05,y:91.41,r:3.5,label:"씨앗상점",type:"shop",color:"#ff8a18"}
+  {node:"H3_SHOP",x:20.05,y:96.20,r:3.6,label:"씨앗상점",type:"shop",color:"#ff8a18"}
  ],
  farmPlots:[
   [43.3,45.5],[49.1,45.5],[54.8,45.5],
