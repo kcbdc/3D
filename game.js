@@ -191,8 +191,17 @@ function drawCrops(){
     const pos=plots[i];
     const p=w2s(pos[0],pos[1]);
     const growth=Math.min(1,(Date.now()-f.plantedAt)/f.growMs);
-    const size=18+growth*12;
+    const size=24+growth*10; // bumped up the base size so even a freshly-planted sprout is easy to see, not just the finished crop
     const stageEmoji=growth>=1?SEEDS[f.seed].emoji:growth<0.34?"🌱":growth<0.7?"🌿":SEEDS[f.seed].emoji;
+    // 새싹 단계부터 눈에 잘 띄도록, 모든 성장 단계에서 부드러운 원형 배경(halo)을 먼저 깔아줌
+    // -- 예전엔 다 자랐을 때의 금색 그림자만 두드러지고, 막 심었을 때의 초록 그림자는 흙 텍스처에
+    // 묻혀서 "사라진 것처럼" 보일 수 있었음
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,size*0.62,0,Math.PI*2);
+    ctx.fillStyle=growth>=1?"rgba(255,214,102,.28)":"rgba(255,255,255,.22)";
+    ctx.fill();
+    ctx.restore();
     // 성장 진행률 표시: 원형 대신 새싹 바로 아래에 아주 작은 막대바로 표시
     if(growth<1){
       const barW=size*1.1,barH=2.6,barX=p.x-barW/2,barY=p.y+size*0.55;
@@ -206,9 +215,8 @@ function drawCrops(){
     ctx.save();
     ctx.font=`${size}px serif`;
     ctx.textAlign="center";ctx.textBaseline="middle";
-    ctx.shadowColor=growth>=1?"rgba(255,224,102,.9)":"rgba(58,255,126,.75)";
-    ctx.shadowBlur=growth>=1?12:8;
-    if(growth<1&&growth>=0.7)ctx.globalAlpha=0.75; // growing-but-not-ready phase reuses the final emoji at reduced opacity + smaller size, so it visibly differs from the fully-ready state
+    ctx.shadowColor=growth>=1?"rgba(255,224,102,.95)":"rgba(58,255,126,.9)";
+    ctx.shadowBlur=growth>=1?14:10;
     ctx.fillText(stageEmoji,p.x,p.y);
     ctx.restore();
     if(growth>=1){

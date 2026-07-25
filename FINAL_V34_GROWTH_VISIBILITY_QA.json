@@ -1,0 +1,32 @@
+{
+  "version": "2026.07.25-growth-visibility-v34",
+  "context": "User confirmed the finished crop is now correctly centered (v33's farmPlots recalibration worked), but reported the growing process (sprout -> mid-growth) 'disappears again'.",
+
+  "diagnosis": {
+    "could_not_visually_screenshot_this_session": "Image viewing wasn't rendering visual content in this session's responses, so this was diagnosed via pixel-level statistical analysis instead of eyeballing a screenshot.",
+    "method": "Planted crops at 12 different growth percentages (0% through 100%) across all plots, screenshotted the live game, then measured brightness/contrast (mean RGB, standard deviation) in a small window around each plot's exact center pixel.",
+    "finding": "Something WAS being drawn at every single growth stage (no plot was literally blank) -- but the visual PROMINENCE was very uneven: the base sprout size was small (18px) with only a moderate green shadow glow, and the 70-100% growing phase was additionally drawn at 75% opacity. Against the busy tilled-soil texture in the background art, a small, semi-transparent, weakly-glowing sprite can easily blend in and look like nothing is there -- while the finished crop (30px, full opacity, strong golden glow) stands out very clearly by comparison. This is very likely what read as the growing stage 'disappearing' -- not a rendering bug where nothing is drawn, but a contrast/visibility problem where the early stages are much harder to notice than the final one."
+  },
+
+  "fix": {
+    "soft_halo_backdrop": "Added a soft translucent circular backdrop drawn behind the crop sprite at every single growth stage (white-ish while growing, golden while ready), giving guaranteed contrast against the soil texture regardless of stage -- confirmed via pixel measurement that even the growth=0% stage now shows a clearly brighter/whiter tint at its plot center compared to before.",
+    "bigger_base_size": "Increased the sprite size range from 18-30px to 24-34px, so even a freshly-planted seed is noticeably larger and easier to spot immediately.",
+    "removed_opacity_reduction": "Removed the 75% opacity reduction that was previously applied in the 70-100% growth range -- it was making the crop LESS visible right as it approached completion, which seemed counterproductive; it's now full opacity throughout.",
+    "stronger_glow": "Increased shadowBlur slightly for both the growing (8->10) and ready (12->14) states."
+  },
+
+  "verification": {
+    "syntax": "node --check passes on game.js.",
+    "pixel_measurement_before_after": "Re-measured the same 12 growth-stage plots after the fix: every stage (including 0% growth) now shows a clear brightness increase in the green/blue channels at its plot center (e.g. plot 0 at growth=0%% went from mean RGB [119.6,117.9,53.7] to [126.3,142.6,71.0] -- a substantial, consistent lightening matching the new halo backdrop), confirming the visual change is present and consistent across the entire growth range, not just at completion.",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity, the stuck-at-node escape test, the speed-equalization test, and the standard headless-browser playthrough (only the expected harmless local-CORS weather-fetch errors) all still pass."
+  },
+
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}
