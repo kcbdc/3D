@@ -1,0 +1,32 @@
+{
+  "version": "2026.07.25-mission-shuffle-stem-v36",
+  "changes": {
+    "mission_answer_always_option_1": {
+      "root_cause": "Every mission entry in the data had its correct choice authored as the FIRST item in the options array (a data-authoring convention, not intentional difficulty design), so the correct answer's on-screen position never varied -- always the first button.",
+      "fix": "openMission() now shuffles a copy of the options array with Fisher-Yates each time a mission is displayed, so the correct answer's position is randomized on every attempt. The underlying mission data (and its correct/reason fields) is untouched; only the display order changes.",
+      "verified": "Opened the same HQ mission 10 times in a row and logged the displayed price order each time -- the correct option's position varied across trials (3rd, 3rd, 3rd, 3rd, 2nd, 2nd, 2nd, 1st, 3rd, 2nd), confirming genuine randomization rather than a fixed pattern."
+    },
+    "crop_stem_centering": {
+      "change": "Growing-stage crops (sprout/growing, i.e. growth<1) now anchor at their BOTTOM to the plot's center coordinate (ctx.textBaseline='bottom') instead of the middle, so the stem visually rises upward from the plot's center like a real plant growing out of the ground. The fully-grown stage keeps the previous middle-anchored positioning, since the user confirmed that position was already correct.",
+      "side_effects_adjusted": "The small progress bar (shown while growing) and the halo backdrop were both re-anchored to this same 'ground level' point so they stay visually consistent with the new stem-from-center behavior."
+    },
+    "crop_size": "Reduced by 3% (multiplied the existing 24-34px size range by 0.97) per the explicit request.",
+    "share_orientation_best_effort": {
+      "change": "shareGame() now re-attempts the fullscreen + screen.orientation.lock('landscape') sequence (added in v32) right when the share modal opens, in addition to the attempt already made at game start -- maximizing the chance the device is genuinely landscape-locked at the OS level before any external app (mail, SMS) or the native share sheet (KakaoTalk button) launches.",
+      "hard_limitation_disclosed": "This cannot be fully guaranteed for external native apps (Mail, Messages, KakaoTalk itself). Once the OS hands control to a separate app, that app's own orientation behavior takes over -- a web page has no way to force a different, already-installed native app to render in a specific orientation. This fix maximizes the chance (by keeping our own page's orientation lock active/fresh right before handoff) but cannot eliminate the platform limitation entirely, especially on browsers/OS versions where the orientation lock API itself isn't supported (e.g. iOS Safari)."
+    }
+  },
+  "verification": {
+    "syntax": "node --check passes on game.js.",
+    "mission_shuffle": "10-trial test confirmed randomized correct-answer position.",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity, the stuck-at-node escape test, the speed-equalization test, and the standard headless-browser playthrough (only the expected harmless local-CORS weather-fetch errors) all still pass."
+  },
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}

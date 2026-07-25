@@ -191,20 +191,19 @@ function drawCrops(){
     const pos=plots[i];
     const p=w2s(pos[0],pos[1]);
     const growth=Math.min(1,(Date.now()-f.plantedAt)/f.growMs);
-    const size=24+growth*10; // bumped up the base size so even a freshly-planted sprout is easy to see, not just the finished crop
+    const size=(24+growth*10)*0.97; // 3% 크기 축소
     const stageEmoji=growth>=1?SEEDS[f.seed].emoji:growth<0.34?"🌱":growth<0.7?"🌿":SEEDS[f.seed].emoji;
-    // 새싹 단계부터 눈에 잘 띄도록, 모든 성장 단계에서 부드러운 원형 배경(halo)을 먼저 깔아줌
-    // -- 예전엔 다 자랐을 때의 금색 그림자만 두드러지고, 막 심었을 때의 초록 그림자는 흙 텍스처에
-    // 묻혀서 "사라진 것처럼" 보일 수 있었음
+    // 새싹 단계부터 눈에 잘 띄도록, 모든 성장 단계에서 부드러운 원형 배경(halo)을 밭 중심(땅
+    // 높이)에 먼저 깔아줌
     ctx.save();
     ctx.beginPath();
     ctx.arc(p.x,p.y,size*0.62,0,Math.PI*2);
     ctx.fillStyle=growth>=1?"rgba(255,214,102,.28)":"rgba(255,255,255,.22)";
     ctx.fill();
     ctx.restore();
-    // 성장 진행률 표시: 원형 대신 새싹 바로 아래에 아주 작은 막대바로 표시
+    // 성장 진행률 표시: 새싹 바로 아래(땅 높이 기준)에 아주 작은 막대바로 표시
     if(growth<1){
-      const barW=size*1.1,barH=2.6,barX=p.x-barW/2,barY=p.y+size*0.55;
+      const barW=size*1.1,barH=2.6,barX=p.x-barW/2,barY=p.y+4;
       ctx.save();
       ctx.fillStyle="rgba(0,0,0,.45)";
       ctx.fillRect(barX,barY,barW,barH);
@@ -214,7 +213,11 @@ function drawCrops(){
     }
     ctx.save();
     ctx.font=`${size}px serif`;
-    ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.textAlign="center";
+    // 자라는 중(growth<1)일 때는 줄기 '밑동'이 밭 중심(땅 높이)에 오도록 바닥 기준으로 정렬해
+    // 위로 자라나는 모습이 되고, 다 자란 뒤(growth>=1)에는 열매가 중심에 앉은 모습이 되도록
+    // 가운데 기준으로 정렬 (사용자가 다 자란 상태 위치는 그대로 좋다고 확인함)
+    ctx.textBaseline=growth>=1?"middle":"bottom";
     ctx.shadowColor=growth>=1?"rgba(255,224,102,.95)":"rgba(58,255,126,.9)";
     ctx.shadowBlur=growth>=1?14:10;
     ctx.fillText(stageEmoji,p.x,p.y);
@@ -534,6 +537,14 @@ function doWork(h){
  if(pool&&pool.length){openMission(h,pool);return}
  const reward=Math.round(h.reward*CHARS[state.character].reward);state.gold+=reward;recalcLevel();state.quests[0]=true;save();toast(`${h.label} 업무 완료 · +${reward}G`)
 }
+function shuffleArray(arr){
+ const a=arr.slice();
+ for(let i=a.length-1;i>0;i--){
+   const j=Math.floor(Math.random()*(i+1));
+   [a[i],a[j]]=[a[j],a[i]];
+ }
+ return a;
+}
 function openMission(h,pool){
  const rawIdx=state.missionIndex[h.node];
  const idx=(Number.isFinite(rawIdx)?rawIdx:0)%pool.length;
@@ -541,15 +552,18 @@ function openMission(h,pool){
  if(!m){ // defensive fallback -- should never happen now, but never crash the game over a bad mission index
    const reward=Math.round(h.reward*CHARS[state.character].reward);state.gold+=reward;recalcLevel();state.quests[0]=true;save();toast(`${h.label} 업무 완료 · +${reward}G`);return;
  }
+ // 정답이 항상 데이터의 첫 번째 항목으로 고정되어 있어 매번 1번만 고르면 통과되는 문제가
+ // 있었음 -- 표시할 때마다 옵션 순서를 랜덤으로 섞어서 정답 위치가 매번 바뀌도록 함
+ const shuffled=shuffleArray(m.options);
  let html=`<h2>📋 ${h.label} · 구매 미션</h2><p>${m.title}</p><p style="opacity:.75;font-size:13px;">${m.spec}</p><div class="shop-grid">`;
- m.options.forEach((o,i)=>{html+=`<article class="item mission-opt"><p class="mission-opt-text">${o.text}</p><p class="mission-opt-price">${o.price.toLocaleString()}원</p><button type="button" data-opt="${i}">이 업체 선택</button></article>`});
+ shuffled.forEach((o,i)=>{html+=`<article class="item mission-opt"><p class="mission-opt-text">${o.text}</p><p class="mission-opt-price">${o.price.toLocaleString()}원</p><button type="button" data-opt="${i}">이 업체 선택</button></article>`});
  html+=`</div><button type="button" id="ai-advisor-btn" class="ai-advisor-btn">🤖 AI 조달 자문관에게 물어보기</button><div id="ai-hint" class="ai-hint-box" style="display:none;"></div>`;
  openModal(html);
- document.querySelectorAll("[data-opt]").forEach(b=>b.addEventListener("click",()=>resolveMission(h,pool,idx,+b.dataset.opt)));
+ document.querySelectorAll("[data-opt]").forEach(b=>b.addEventListener("click",()=>resolveMission(h,pool,idx,shuffled,+b.dataset.opt)));
  document.getElementById("ai-advisor-btn").addEventListener("click",()=>showAiHint(m));
 }
-function resolveMission(h,pool,idx,optIdx){
- const m=pool[idx],o=m.options[optIdx];
+function resolveMission(h,pool,idx,shuffledOptions,optIdx){
+ const o=shuffledOptions[optIdx];
  if(o.correct){
    const reward=Math.round(h.reward*CHARS[state.character].reward);
    state.gold+=reward;recalcLevel();state.quests[0]=true;
@@ -806,6 +820,10 @@ function getSharePayload(){
 // 카카오톡 공유는 Kakao JS SDK + 앱 키 등록이 필요한데 이 프로젝트엔 연동되어 있지 않아
 // (가짜로 흉내내면 조용히 실패하거나 404가 나므로) 목록에서 제외했습니다.
 async function shareGame(){
+ // 공유 버튼을 누르는 시점에 다시 한 번 전체화면+가로 고정을 시도해서, 이메일/카카오톡 같은
+ // 외부 앱이 열리기 직전에 기기가 실제로 가로 상태일 가능성을 최대한 높임. (외부 네이티브 앱
+ // 자체의 화면 방향까지 우리 페이지에서 강제할 수는 없다는 한계는 있음)
+ try{await KOMSCO.Orientation.lockLandscape()}catch{}
  const payload=getSharePayload();
  const msg=`${payload.title}\n${payload.text}\n${payload.url}`;
  const enc=encodeURIComponent;
