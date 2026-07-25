@@ -1,0 +1,38 @@
+{
+  "version": "2026.07.25-polish-round-v31",
+  "changes": {
+    "kakaotalk_share_button": {
+      "what": "Added a 카카오톡 chip to the share modal. Clicking it opens the native OS share sheet (navigator.share) -- the same one shown in the reference screenshot with Gmail/KakaoTalk/Chrome/BAND icons -- so the user can pick KakaoTalk from their installed apps.",
+      "why_not_a_real_kakao_sdk_button": "A proper 'send directly to KakaoTalk' button requires the Kakao JS SDK with a registered app key, which isn't configured anywhere in this project. Faking it without that setup would silently fail. The native share sheet is the closest honest equivalent achievable without that key.",
+      "known_tradeoff": "The native share sheet always renders in the device's true physical orientation, same limitation described when navigator.share() was removed from the main share flow in v29/v30. This is now scoped to only the Kakao button (every other channel stays as an in-page link that can't clash with the rotation), and is called out in a code comment so it isn't mistaken for a regression later."
+    },
+    "purchased_seeds_missing_from_farm": {
+      "user_question": "Asked whether a DB table needs to be added.",
+      "answer": "No -- the game's inventory/gold/farm state is entirely client-side (localStorage only). The project does have server-side save/load endpoints backed by a D1 database (functions/api/save.js, functions/api/load.js), but grep-confirmed game.js never actually calls either of them anywhere -- they're unused dead code as far as gameplay is concerned, so there's no server round-trip that could be reverting a purchase.",
+      "verification": "Directly tested buy -> reload -> check inventory in a live browser: a purchased seed's count correctly persisted through a full page reload. No independent bug found in the current (v30/v31) code. This was very likely the same stale game-systems.js caching bug fixed in v30 -- if the shop UI (from a fresh game.js) let the player buy a seed type that a stale cached game-systems.js's SEEDS object didn't have yet, the purchase could behave inconsistently. Expected to already be resolved by v30's cache-busting fix; flagged to re-test on this version specifically."
+    },
+    "pet_movement": {
+      "before": "Pet position was computed directly from two sine waves every frame -- constant-speed gliding with no stops, no pauses, the same motion forever.",
+      "after": "Replaced with a proper wander behavior: the pet walks toward a randomly chosen point within the farm bounds at a natural walking speed, pauses for 0.7-2.3 seconds on arrival, then picks a new random target and walks again. Added a small bob while walking (still while paused) and a left/right facing flip based on movement direction, so it reads as an animal that walks and rests rather than something sliding along a fixed path."
+    },
+    "crop_growth_indicator": {
+      "before": "A circular progress ring was drawn around each growing crop (added last round in response to 'make growth visible').",
+      "after": "Replaced with a small horizontal progress bar positioned just below each sprout, per this round's explicit request (not a circle shape, small bar under the sprout)."
+    }
+  },
+  "verification": {
+    "syntax": "node --check passes on game.js and game-systems.js.",
+    "share_modal": "Confirmed via HTML inspection that the 카카오톡 chip renders as a button (not a link) and is wired to navigator.share with a clipboard fallback.",
+    "buy_persist_flow": "Live browser test: bought a seed, reloaded the page, confirmed the purchased count was still present afterward.",
+    "pet_and_growth_bar_rendering": "Bought the pet upgrade and let several seconds of frames render with no console errors -- confirms the new wander state machine and the replaced progress-bar drawing code both run cleanly.",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity, the stuck-at-node escape test, and the standard headless-browser playthrough (only the expected harmless local-CORS weather-fetch errors) all still pass."
+  },
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}

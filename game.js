@@ -193,15 +193,14 @@ function drawCrops(){
     const growth=Math.min(1,(Date.now()-f.plantedAt)/f.growMs);
     const size=18+growth*12;
     const stageEmoji=growth>=1?SEEDS[f.seed].emoji:growth<0.34?"🌱":growth<0.7?"🌿":SEEDS[f.seed].emoji;
-    // 성장 진행률 링: 모달을 열지 않아도 지도 위에서 바로 진행 상황이 보이도록
+    // 성장 진행률 표시: 원형 대신 새싹 바로 아래에 아주 작은 막대바로 표시
     if(growth<1){
+      const barW=size*1.1,barH=2.6,barX=p.x-barW/2,barY=p.y+size*0.55;
       ctx.save();
-      ctx.beginPath();
-      ctx.arc(p.x,p.y+size*0.15,size*0.85,-Math.PI/2,-Math.PI/2+growth*Math.PI*2);
-      ctx.strokeStyle="rgba(120,255,160,.9)";
-      ctx.lineWidth=2.4;
-      ctx.lineCap="round";
-      ctx.stroke();
+      ctx.fillStyle="rgba(0,0,0,.45)";
+      ctx.fillRect(barX,barY,barW,barH);
+      ctx.fillStyle="rgba(120,255,160,.95)";
+      ctx.fillRect(barX,barY,barW*growth,barH);
       ctx.restore();
     }
     ctx.save();
@@ -222,6 +221,34 @@ function drawCrops(){
   });
 }
 
+let petWander=null,lastPetFrameTime=0;
+function updatePetWander(bounds){
+ const now=Date.now();
+ const dt=lastPetFrameTime?Math.min(0.08,(now-lastPetFrameTime)/1000):0;
+ lastPetFrameTime=now;
+ if(!petWander){
+   const cx=(bounds.minX+bounds.maxX)/2,cy=(bounds.minY+bounds.maxY)/2;
+   petWander={x:cx,y:cy,tx:cx,ty:cy,pausedUntil:0,facingLeft:false,walking:false};
+ }
+ const p=petWander;
+ if(now<p.pausedUntil){p.walking=false;return p}
+ const dx=p.tx-p.x,dy=p.ty-p.y,dist=Math.hypot(dx,dy);
+ if(dist<0.35){
+   // 도착: 잠깐 멈춰서 쉬었다가, 밭 안의 새로운 목표 지점을 골라 다시 걷기 시작
+   p.tx=bounds.minX+Math.random()*(bounds.maxX-bounds.minX);
+   p.ty=bounds.minY+Math.random()*(bounds.maxY-bounds.minY);
+   p.pausedUntil=now+700+Math.random()*1600;
+   p.walking=false;
+ }else{
+   const speed=3.4; // world-units/sec, 자연스러운 걷는 속도
+   const step=Math.min(speed*dt,dist);
+   p.facingLeft=dx<0;
+   p.x+=(dx/dist)*step;
+   p.y+=(dy/dist)*step;
+   p.walking=true;
+ }
+ return p;
+}
 function drawFarmDecor(){
  const plots=WORLD.farmPlots||[];
  if(!plots.length)return;
@@ -233,17 +260,16 @@ function drawFarmDecor(){
    const p=w2s(cx,minY-4.2);
    ctx.save();ctx.font="26px serif";ctx.textAlign="center";ctx.shadowColor="rgba(255,214,102,.8)";ctx.shadowBlur=10;ctx.fillText("🧑‍🌾",p.x,p.y);ctx.restore();
  }
- // 수확도우미 댕댕이: 밭 '안쪽'을 자유롭게 돌아다니도록 (두 개의 다른 주기 sine파로 밭 경계
- // 안에서 자연스럽게 배회하는 경로를 만듦 -- 기존에는 밭 바깥 고정된 자리에서 살짝만 흔들렸음)
+ // 수확도우미 댕댕이: 밭 안에서 목표 지점을 향해 자연스럽게 걷다가 도착하면 잠깐 쉬고,
+ // 다시 새 목표를 골라 걷는 방식 (이전의 sine파 미끄러짐보다 훨씬 동물답게 움직임)
  if(state.upgrades.pet){
-   const t=Date.now()/1000;
    const marginX=(maxX-minX)*0.12,marginY=(maxY-minY)*0.12;
-   const px=cx+Math.sin(t/2.2)*((maxX-minX)/2-marginX);
-   const py=(minY+maxY)/2+Math.sin(t/3.1+1.3)*((maxY-minY)/2-marginY);
-   const facingLeft=Math.cos(t/2.2)<0;
-   const p=w2s(px,py);
+   const bounds={minX:minX+marginX,maxX:maxX-marginX,minY:minY+marginY,maxY:maxY-marginY};
+   const pet=updatePetWander(bounds);
+   const bob=pet.walking?Math.abs(Math.sin(Date.now()/140))*1.1:0;
+   const p=w2s(pet.x,pet.y-bob*0.05);
    ctx.save();ctx.font="22px serif";ctx.textAlign="center";
-   if(facingLeft){ctx.translate(p.x,p.y);ctx.scale(-1,1);ctx.fillText("🐕",0,0)}
+   if(pet.facingLeft){ctx.translate(p.x,p.y);ctx.scale(-1,1);ctx.fillText("🐕",0,0)}
    else ctx.fillText("🐕",p.x,p.y);
    ctx.restore();
  }
@@ -769,20 +795,37 @@ async function shareGame(){
  const msg=`${payload.title}\n${payload.text}\n${payload.url}`;
  const enc=encodeURIComponent;
  const channels=[
+   {icon:"🟡",label:"카카오톡",kind:"native"},
    {icon:"💬",label:"문자",href:`sms:?body=${enc(msg)}`},
    {icon:"✉️",label:"이메일",href:`mailto:?subject=${enc(payload.title)}&body=${enc(msg)}`},
    {icon:"🐦",label:"X(트위터)",href:`https://twitter.com/intent/tweet?text=${enc(payload.text)}&url=${enc(payload.url)}`},
    {icon:"🟢",label:"라인",href:`https://social-plugins.line.me/lineit/share?url=${enc(payload.url)}&text=${enc(payload.text)}`}
  ];
  let html=`<h2>📤 게임 친구 공유하기</h2><p>친구에게 KOMSCO 네온팜 시티 링크를 공유해보세요.</p><div class="share-grid">`;
- channels.forEach((c,i)=>html+=`<a class="share-chip" href="${c.href}" target="_blank" rel="noopener">${c.icon} ${c.label}</a>`);
+ channels.forEach((c,i)=>{
+   if(c.kind==="native")html+=`<button type="button" class="share-chip" id="shareKakaoBtn">${c.icon} ${c.label}</button>`;
+   else html+=`<a class="share-chip" href="${c.href}" target="_blank" rel="noopener">${c.icon} ${c.label}</a>`;
+ });
  html+=`<button type="button" id="shareCopyBtn" class="share-chip share-chip-copy">🔗 링크복사</button></div>
    <div class="share-link-box"><span id="shareLinkText">${payload.url}</span></div>`;
  openModal(html);
- const btn=document.getElementById("shareCopyBtn");
- if(btn)btn.addEventListener("click",async()=>{
-   try{await navigator.clipboard.writeText(msg);btn.textContent="✅ 복사 완료"}
-   catch{btn.textContent="복사 실패, 직접 선택해 복사해주세요"}
+ const copyBtn=document.getElementById("shareCopyBtn");
+ if(copyBtn)copyBtn.addEventListener("click",async()=>{
+   try{await navigator.clipboard.writeText(msg);copyBtn.textContent="✅ 복사 완료"}
+   catch{copyBtn.textContent="복사 실패, 직접 선택해 복사해주세요"}
+ });
+ // 카카오톡 전용: 이 프로젝트엔 Kakao SDK 앱 키가 연동되어 있지 않아 정식 "카카오톡으로
+ // 공유" 버튼을 만들 수 없습니다. 대신 OS 기본 공유창(navigator.share)을 띄워, 설치된 앱
+ // 목록에서 사용자가 직접 카카오톡을 선택할 수 있도록 합니다. (참고: 이 OS 공유창은 기기의
+ // 실제 화면 방향으로 뜨기 때문에, 세로로 쥔 채 가로 트릭을 쓰는 중이라면 공유창만 세로로
+ // 보일 수 있습니다 -- 이 버튼에서만 발생하는, OS 자체의 제약입니다.)
+ const kakaoBtn=document.getElementById("shareKakaoBtn");
+ if(kakaoBtn)kakaoBtn.addEventListener("click",async()=>{
+   if(navigator.share){
+     try{await navigator.share(payload);return}catch{}
+   }
+   try{await navigator.clipboard.writeText(msg);toast("카카오톡 공유는 이 브라우저에서 지원되지 않아 링크를 복사했습니다. 카카오톡에 붙여넣어 주세요.")}
+   catch{toast("카카오톡 앱에 아래 링크를 직접 붙여넣어 공유해주세요: "+payload.url)}
  });
 }
 
