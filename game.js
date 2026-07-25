@@ -698,7 +698,7 @@ ui("autoBtn").addEventListener("click",()=>{
  const h=WORLD.hotspots.reduce((a,b)=>Math.hypot(state.player.x-a.x,state.player.y-a.y)<Math.hypot(state.player.x-b.x,state.player.y-b.y)?a:b);
  startAuto(h);
 });
-ui("rankingBtn").addEventListener("click",()=>openModal(`<h2>🏆 랭킹</h2><div class=item><b>현재 점수</b><p>${state.gold+state.harvest*100+state.level*1000}</p></div>`));ui("codexBtn").addEventListener("click",()=>openModal(`<h2>📖 도감</h2><div class=item><p>업무·씨앗·작물 도감이 표시되는 영역입니다.</p></div>`));ui("settingsBtn").addEventListener("click",()=>openModal(`<h2>⚙️ 설정</h2><div class=item><p>낮·밤 자동 전환과 가로 화면 고정이 적용되어 있습니다.</p></div>`));ui("notifBtn").addEventListener("click",openNotifPanel);ui("shareBtn").addEventListener("click",shareGame);
+ui("rankingBtn").addEventListener("click",()=>openModal(`<h2>🏆 랭킹</h2><div class=item><b>현재 점수</b><p>${state.gold+state.harvest*100+state.level*1000}</p></div>`));ui("codexBtn").addEventListener("click",()=>openModal(`<h2>📖 도감</h2><div class=item><p>업무·씨앗·작물 도감이 표시되는 영역입니다.</p></div>`));ui("settingsBtn").addEventListener("click",()=>openModal(`<h2>⚙️ 설정</h2><div class=item><p>낮·밤 자동 전환과 가로 화면 고정이 적용되어 있습니다.</p></div>`));ui("notifBtn").addEventListener("click",openNotifPanel);ui("shareBtn").addEventListener("click",shareGame);ui("communityBtn").addEventListener("click",openCommunityPanel);
 ui("menuBtn").addEventListener("click",()=>{ui("utilityDrawer").classList.toggle("open");ui("utilityDrawer").setAttribute("aria-hidden",String(!ui("utilityDrawer").classList.contains("open")))});ui("drawerClose").addEventListener("click",()=>ui("utilityDrawer").classList.remove("open"));ui("shopShortcut").addEventListener("click",openShop);
 ui("questCollapse").addEventListener("click",()=>ui("questPanel").classList.toggle("collapsed"));ui("claimRewardBtn").addEventListener("click",()=>{if(state.quests.every(Boolean)){state.gold+=500;state.quests=[false,false,false,false];save();toast("일일 보상 +500G")}else toast("모든 미션을 완료하세요.")});ui("modalClose").addEventListener("click",closeModal);ui("modal").addEventListener("click",e=>{if(e.target===ui("modal"))closeModal()});
 ui("startBtn").addEventListener("click",async()=>{state.character=selected;started=true;ui("characterSelect").classList.remove("show");await KOMSCO.Orientation.lockLandscape();save();toast(`${CHARS[selected].name}과 함께 시작합니다.`)});
@@ -791,13 +791,17 @@ function updateNotifBadge(){
  badge.classList.toggle("show",total>0);
 }
 function openNotifPanel(){
+ stopBellRing(); // 🔔 벨을 눌러 알림 패널을 여는 것만으로도 깜빡임은 꺼짐
  const notifs=loadList(NOTIF_KEY),mail=loadList(MAIL_KEY);
  let html="<h2>🔔 알림</h2>";
- html+=notifs.length?notifs.map(n=>`<div class="item"><b>${n.title}</b><p>${n.body}</p></div>`).join(""):"<p>아직 알림이 없습니다.</p>";
+ html+=notifs.length?notifs.map(n=>n.dm
+   ?`<div class="item notif-clickable" data-notif-dm="${n.dm.otherId}" data-notif-dm-nick="${n.dm.nickname}"><b>${n.title}</b><p>${n.body}</p></div>`
+   :`<div class="item"><b>${n.title}</b><p>${n.body}</p></div>`).join(""):"<p>아직 알림이 없습니다.</p>";
  html+="<h2>📮 우편함</h2>";
  html+=mail.length?mail.map(m=>`<div class="item"><b>${m.title}</b><p>${m.body}</p><button type="button" data-mail="${m.id}" ${m.claimed?"disabled":""}>${m.claimed?"✅ 수령 완료":`💰 ${m.gold}G 받기`}</button></div>`).join(""):"<p>받은 우편이 없습니다.</p>";
  openModal(html);
  document.querySelectorAll("[data-mail]").forEach(b=>b.addEventListener("click",()=>claimMail(b.dataset.mail)));
+ document.querySelectorAll("[data-notif-dm]").forEach(el=>el.addEventListener("click",()=>openDmThread(el.dataset.notifDm,el.dataset.notifDmNick)));
  notifs.forEach(n=>n.read=true);saveList(NOTIF_KEY,notifs);
  updateNotifBadge();
 }
@@ -809,6 +813,166 @@ function claimMail(id){
  toast(`우편함에서 ${mail.gold}G를 받았습니다.`);
  openNotifPanel();
 }
+/* ===================== 커뮤니티 기반: 로그인 + 접속 상태 (1단계) =====================
+   전체 커뮤니티 기능(1:1 쪽지, 즐겨찾기, 검색)의 전제조건이 되는 기반 단계만 구현합니다.
+   로그인(이메일+닉네임) → 서버가 사용자 식별 → 20초마다 하트비트로 '접속 중' 갱신 →
+   현재 접속 중인 다른 사용자 목록을 볼 수 있음. 쪽지/즐겨찾기/검색은 다음 단계에서 추가. */
+const ACCOUNT_KEY="komscoAccountV1";
+let heartbeatTimer=null;
+function getAccount(){try{return JSON.parse(localStorage.getItem(ACCOUNT_KEY))}catch{return null}}
+function setAccount(acc){try{localStorage.setItem(ACCOUNT_KEY,JSON.stringify(acc))}catch{}}
+function clearAccount(){try{localStorage.removeItem(ACCOUNT_KEY)}catch{}}
+
+async function doLogin(email,nickname){
+ try{
+   const res=await fetch("./api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,nickname})});
+   const data=await res.json();
+   if(!data.ok){toast(data.error||"로그인에 실패했습니다.");return false}
+   setAccount(data.user);
+   startHeartbeat();
+   toast(`${data.user.nickname}님, 환영합니다!`);
+   return true;
+ }catch{
+   toast("서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
+   return false;
+ }
+}
+function doLogout(){
+ clearAccount();
+ if(heartbeatTimer){clearInterval(heartbeatTimer);heartbeatTimer=null}
+ toast("로그아웃되었습니다.");
+}
+async function sendHeartbeat(){
+ const acc=getAccount();
+ if(!acc)return;
+ try{
+   const res=await fetch("./api/presence/heartbeat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({userId:acc.id})});
+   const data=await res.json();
+   if(!data.ok&&res.status===404){
+     // 서버에 더 이상 존재하지 않는 계정(예: DB 초기화) -- 로컬에 남은 옛 로그인 정보 정리
+     clearAccount();
+     if(heartbeatTimer){clearInterval(heartbeatTimer);heartbeatTimer=null}
+     return;
+   }
+   if(data.ok&&Array.isArray(data.unreadDms))checkDmNotifications(data.unreadDms);
+ }catch{} // 네트워크 문제로 하트비트가 실패해도 게임 플레이에는 영향 없음
+}
+function startHeartbeat(){
+ if(heartbeatTimer)return;
+ sendHeartbeat();
+ heartbeatTimer=setInterval(sendHeartbeat,20000);
+}
+async function fetchOnlineUsers(){
+ try{
+   const res=await fetch("./api/presence/online");
+   const data=await res.json();
+   return data.ok?data.online:[];
+ }catch{return[]}
+}
+async function openCommunityPanel(){
+ const acc=getAccount();
+ if(!acc){
+   openModal(`<h2>👥 커뮤니티</h2><p>커뮤니티 기능을 사용하려면 먼저 로그인해주세요.</p>
+     <div class="item"><input type="email" id="loginEmail" placeholder="이메일" style="width:100%;margin-bottom:8px;padding:8px;border-radius:8px;border:1px solid #4b9fe455;background:#0e2038;color:#fff;">
+     <input type="text" id="loginNickname" placeholder="닉네임 (선택)" style="width:100%;margin-bottom:8px;padding:8px;border-radius:8px;border:1px solid #4b9fe455;background:#0e2038;color:#fff;">
+     <button type="button" id="loginSubmitBtn" class="ai-advisor-btn">로그인 / 가입</button></div>`);
+   document.getElementById("loginSubmitBtn").addEventListener("click",async()=>{
+     const email=document.getElementById("loginEmail").value.trim();
+     const nickname=document.getElementById("loginNickname").value.trim()||"조폐 히어로";
+     if(!email){toast("이메일을 입력해주세요.");return}
+     const success=await doLogin(email,nickname);
+     if(success)openCommunityPanel();
+   });
+   return;
+ }
+ openModal(`<h2>👥 커뮤니티</h2><p>${acc.nickname}님으로 로그인됨</p><div id="onlineListBox"><p style="opacity:.7;">접속자 목록을 불러오는 중...</p></div><button type="button" id="logoutBtn" class="ai-advisor-btn" style="background:linear-gradient(135deg,#7a2e2e,#4a1717);margin-top:10px;">로그아웃</button>`);
+ document.getElementById("logoutBtn").addEventListener("click",()=>{doLogout();closeModal()});
+ const online=await fetchOnlineUsers();
+ const box=document.getElementById("onlineListBox");
+ if(!box)return; // 목록을 불러오는 사이 모달을 닫았을 수 있음
+ if(!online.length){
+   box.innerHTML="<p style='opacity:.7;'>현재 접속 중인 다른 사용자가 없습니다.</p>";
+   return;
+ }
+ box.innerHTML="<h3 style='margin:10px 0 6px;font-size:14px;opacity:.8;'>🟢 접속자 ("+online.length+"명)</h3><div class='shop-grid'>"+
+   online.map(u=>`<article class="item"><p>🟢 ${u.nickname}</p><button type="button" data-dm-user="${u.id}" data-dm-nick="${u.nickname}">✉️ 쪽지</button></article>`).join("")+"</div>";
+ box.querySelectorAll("[data-dm-user]").forEach(b=>b.addEventListener("click",()=>openDmThread(b.dataset.dmUser,b.dataset.dmNick)));
+}
+
+/* ===================== 1:1 쪽지 (2단계) ===================== */
+const DM_UNREAD_TRACK_KEY="komscoDmUnreadTrackV1";
+function loadDmUnreadTrack(){try{return JSON.parse(localStorage.getItem(DM_UNREAD_TRACK_KEY)||"{}")}catch{return{}}}
+function saveDmUnreadTrack(t){try{localStorage.setItem(DM_UNREAD_TRACK_KEY,JSON.stringify(t))}catch{}}
+// 하트비트마다 안 읽은 쪽지 수를 발신자별로 비교해서, 그 사이 '새로' 늘어난 경우에만 알림을
+// 띄우고 벨을 흔듦 (이미 알고 있던 안 읽은 쪽지에 대해 매번 다시 알리지 않도록)
+function checkDmNotifications(unreadDms){
+ const prev=loadDmUnreadTrack();
+ const next={};
+ let hasNew=false;
+ for(const u of unreadDms){
+   next[u.senderId]=u.count;
+   if(u.count>(prev[u.senderId]||0)){
+     hasNew=true;
+     pushDmNotification(u.senderId,u.nickname);
+   }
+ }
+ saveDmUnreadTrack(next);
+ if(hasNew)startBellRing();
+}
+function pushDmNotification(senderId,nickname){
+ const list=loadList(NOTIF_KEY);
+ list.unshift({id:"dm"+Date.now()+Math.random().toString(36).slice(2,6),title:"새 쪽지",body:`${nickname}님에게 쪽지가 왔습니다.`,ts:Date.now(),read:false,dm:{otherId:senderId,nickname}});
+ saveList(NOTIF_KEY,list.slice(0,40));
+ updateNotifBadge();
+}
+function startBellRing(){const b=ui("notifBtn");if(b)b.classList.add("ringing")}
+function stopBellRing(){const b=ui("notifBtn");if(b)b.classList.remove("ringing")}
+async function openDmThread(otherId,otherNickname){
+ const acc=getAccount();
+ if(!acc){toast("로그인이 필요합니다.");return}
+ stopBellRing(); // 이 상대와의 대화창을 열면(알림 벨을 거치지 않고 접속자 목록의 ✉️로 바로 열어도) 벨 깜빡임을 끔
+ openModal(`<h2>💬 ${otherNickname}</h2><div id="dmThreadBox" class="dm-thread"><p style="opacity:.6;">불러오는 중...</p></div>
+   <div class="dm-input-row"><input type="text" id="dmInput" placeholder="메시지를 입력하세요" maxlength="1000"><button type="button" id="dmSendBtn">전송</button></div>`);
+ // 대화창을 열면 이 상대에게서 온 안 읽은 쪽지를 자동으로 읽음 처리
+ try{await fetch("./api/dm/read",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({userId:acc.id,otherId})})}catch{}
+ const track=loadDmUnreadTrack();delete track[otherId];saveDmUnreadTrack(track);
+ updateNotifBadge();
+ await renderDmThread(acc.id,otherId);
+ const sendBtn=document.getElementById("dmSendBtn"),input=document.getElementById("dmInput");
+ const send=async()=>{
+   const text=input.value.trim();
+   if(!text)return;
+   input.value="";
+   try{
+     await fetch("./api/dm/send",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({senderId:acc.id,recipientId:otherId,body:text})});
+     await renderDmThread(acc.id,otherId);
+   }catch{toast("전송에 실패했습니다. 다시 시도해주세요.")}
+ };
+ sendBtn.addEventListener("click",send);
+ input.addEventListener("keydown",e=>{if(e.key==="Enter")send()});
+}
+async function renderDmThread(myId,otherId){
+ const box=document.getElementById("dmThreadBox");
+ if(!box)return;
+ let messages=[];
+ try{
+   const res=await fetch(`./api/dm/thread?userId=${encodeURIComponent(myId)}&otherId=${encodeURIComponent(otherId)}`);
+   const data=await res.json();
+   messages=data.ok?data.messages:[];
+ }catch{}
+ if(!messages.length){
+   box.innerHTML="<p style='opacity:.6;'>아직 대화가 없습니다. 첫 메시지를 보내보세요!</p>";
+   return;
+ }
+ // 카카오톡처럼 내 메시지는 오른쪽(보라색), 상대 메시지는 왼쪽으로 구분
+ box.innerHTML=messages.map(m=>{
+   const mine=m.sender_id===myId;
+   return `<div class="dm-row ${mine?"dm-row-mine":"dm-row-theirs"}"><span class="dm-bubble ${mine?"dm-bubble-mine":"dm-bubble-theirs"}">${escapeHtml(m.body)}</span></div>`;
+ }).join("");
+ box.scrollTop=box.scrollHeight;
+}
+function escapeHtml(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML}
+
 /* ===================== 게임 공유하기 (2D 버전 getSharePayload 참고) ===================== */
 function getSharePayload(){
  return{url:location.href,text:"KOMSCO 네온팜 시티에서 함께 도시를 키워요!",title:"KOMSCO 네온팜 시티"};
@@ -879,7 +1043,7 @@ async function shareGame(){
    if(!bgDay&&!bgNight)throw new Error("낮·밤 배경 이미지를 찾을 수 없습니다.");
    const fallbackChar=Object.values(images).find(Boolean);
    for(const id of Object.keys(CHARS))if(!images[id])images[id]=fallbackChar;
-   updateUI();resize();updateNotifBadge();
+   updateUI();resize();updateNotifBadge();if(getAccount())startHeartbeat();
    fetchWeather();
    setInterval(fetchWeather,15*60*1000);
    ui("loading").classList.remove("show");

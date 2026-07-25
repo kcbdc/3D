@@ -1,0 +1,47 @@
+{
+  "version": "2026.07.25-direct-messages-v38",
+  "context": "Stage 2 of the staged community-feature build the user agreed to: 1:1 direct messages, built on top of v37's login/presence foundation.",
+
+  "what_was_built": {
+    "schema": "New direct_messages table (id, sender_id, recipient_id, body, created_at, read_at) -- completely separate from any future group/community chat table, per the request. Indexes on (recipient_id, read_at) for the unread-count query and (sender_id, recipient_id, created_at) for fetching a thread.",
+    "backend": [
+      "functions/api/dm/send.js -- POST {senderId, recipientId, body}, validates and inserts a message.",
+      "functions/api/dm/thread.js -- GET ?userId=&otherId=, returns the full conversation between two users in chronological order.",
+      "functions/api/dm/read.js -- POST {userId, otherId}, marks all unread messages FROM otherId TO userId as read.",
+      "functions/api/presence/heartbeat.js (modified) -- now also returns an unreadDms array (sender id, nickname, count) alongside the existing last_seen_at update, so the unread-message check piggybacks on the same 20-second heartbeat cycle instead of needing a separate poll, matching the requested design."
+    ],
+    "frontend": [
+      "message button added next to each user in the online-users list, opening a 1:1 chat window with that person.",
+      "Chat window: KakaoTalk-style bubbles -- my messages right-aligned in purple, the other person's left-aligned in gray. Message input + send button (Enter key also sends).",
+      "Opening a chat window automatically marks that person's messages as read (calls /api/dm/read) and clears the local unread-tracking entry for them.",
+      "Bell notification integration: the client compares each heartbeat's unread counts per sender against what it saw last time -- only a genuine increase triggers a notification, preventing re-notifying every 20s for the same still-unread messages. A new notification entry is added and the bell starts shaking/ringing.",
+      "The bell stops ringing the moment either the notification panel is opened, or a chat thread is opened (whether via the notification item or the message button directly).",
+      "Notification items for incoming DMs are clickable and open the correct chat thread directly; existing system notifications (level-up, mission complete) are unchanged and still don't trigger the bell ring."
+    ]
+  },
+
+  "explicitly_not_included_yet": [
+    "user search and searching offline users",
+    "favorites (star button, pinned contacts)",
+    "contacts tab with recent-conversations list",
+    "starting a conversation with someone who is currently offline"
+  ],
+
+  "verification": {
+    "syntax": "node --check passes on game.js and all 4 new/modified backend files.",
+    "send_flow": "Verified via a page-injected window.fetch override that opening a chat, sending a message, and having it appear as a right-aligned purple bubble all worked correctly.",
+    "notification_flow_with_real_timer": "Logged in, then waited for the actual 20-second heartbeat interval to fire naturally with a mocked response reporting 2 unread messages from a new sender. Confirmed the bell started ringing and the badge showed the count; opening the notification panel stopped the ringing; the DM notification item was clickable and opened the correct person's chat thread.",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity, the stuck-at-node escape test, the speed-equalization test, and the standard headless-browser playthrough all still pass."
+  },
+
+  "deployment_note_important": "schema.sql needs to be re-applied to the project's D1 database for the new direct_messages table to exist, otherwise all three dm endpoints will fail.",
+
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}

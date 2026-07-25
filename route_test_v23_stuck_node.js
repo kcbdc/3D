@@ -34,33 +34,42 @@ function chooseEdgeAtNode(nodeId,inputX,inputY,previousEdge){
  }
  return bestScore>.08?best:null;
 }
+function worldStep(tx,ty,speed,dt,bgRect){
+ const kx=(bgRect.w||1)/100,ky=(bgRect.h||1)/100;
+ const pixelLen=Math.hypot(tx*kx,ty*ky)||1;
+ const scale=kx*speed*dt/pixelLen;
+ return{x:tx*scale,y:ty*scale};
+}
+const bgRect={w:800,h:360};
 function moveOnRoute(state,currentEdgeRef,dx,dy,dt){
  const magnitude=Math.hypot(dx,dy);if(magnitude<.05)return currentEdgeRef;
  dx/=magnitude;dy/=magnitude;
  let currentEdge=currentEdgeRef;
  if(!currentEdge)currentEdge=PATH.nearestRoad(WORLD,state.x,state.y).edge;
  if(!currentEdge)return currentEdge;
- const tNow=edgeProjection(currentEdge,state.x,state.y).t;
- if(tNow<=.01||tNow>=.99){
-   const nodeId=tNow<=.01?currentEdge[0]:currentEdge[1];
-   const next=chooseEdgeAtNode(nodeId,dx,dy,currentEdge);
-   if(next&&edgeKey(next)!==edgeKey(currentEdge))currentEdge=next;
- }
- const info=edgeInfo(currentEdge,state.x,state.y);
- const sign=(dx*info.tx+dy*info.ty)>=0?1:-1;
- const speed=state.speed;
- const projected=edgeProjection(currentEdge,info.x+info.tx*sign*speed*dt,info.y+info.ty*sign*speed*dt);
- state.x=projected.x;state.y=projected.y;
- if(projected.t<=.05||projected.t>=.95){
-   const nodeId=projected.t<=.05?currentEdge[0]:currentEdge[1];
-   const next=chooseEdgeAtNode(nodeId,dx,dy,currentEdge);
-   if(next&&edgeKey(next)!==edgeKey(currentEdge)){
-     currentEdge=next;
-   }else if(projected.t<=.006||projected.t>=.994){
-     const node=WORLD.nodes[nodeId];
-     state.x=node[0];state.y=node[1];
+ const CAPTURE_RADIUS=2.2,SNAP_RADIUS=.08;
+ function tryBranch(){
+   const [a,b]=currentEdge,A=WORLD.nodes[a],B=WORLD.nodes[b];
+   const distA=Math.hypot(state.x-A[0],state.y-A[1]);
+   const distB=Math.hypot(state.x-B[0],state.y-B[1]);
+   if(distA<=CAPTURE_RADIUS||distB<=CAPTURE_RADIUS){
+     const nodeId=distA<=distB?a:b;
+     const next=chooseEdgeAtNode(nodeId,dx,dy,currentEdge);
+     if(next&&edgeKey(next)!==edgeKey(currentEdge))currentEdge=next;
    }
  }
+ tryBranch();
+ const info=edgeInfo(currentEdge,state.x,state.y);
+ const sign=(dx*info.tx+dy*info.ty)>=0?1:-1;
+ const step=worldStep(info.tx*sign,info.ty*sign,state.speed,dt,bgRect);
+ const projected=edgeProjection(currentEdge,info.x+step.x,info.y+step.y);
+ state.x=projected.x;state.y=projected.y;
+ tryBranch();
+ const [a,b]=currentEdge,A=WORLD.nodes[a],B=WORLD.nodes[b];
+ const distA=Math.hypot(state.x-A[0],state.y-A[1]);
+ const distB=Math.hypot(state.x-B[0],state.y-B[1]);
+ if(distA<=SNAP_RADIUS){state.x=A[0];state.y=A[1]}
+ else if(distB<=SNAP_RADIUS){state.x=B[0];state.y=B[1]}
  return currentEdge;
 }
 
