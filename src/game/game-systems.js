@@ -25,7 +25,15 @@ window.KOMSCO.GameSystems = {
   upgrades:{
     water:{icon:"💧",name:"골든 물뿌리개",desc:"모든 작물 성장 시간 20% 단축",cost:150},
     scarecrow:{icon:"🌾",name:"허수아비 영웅",desc:"모든 작물 수확 보상 10% 증가",cost:300},
-    pet:{icon:"🐶",name:"수확도우미 댕댕이",desc:"다 자란 작물을 자동으로 수확",cost:600}
+    pet:{icon:"🐶",name:"수확도우미 댕댕이",desc:"다 자란 작물을 자동으로 수확",cost:600},
+    fertilizer:{icon:"🧪",name:"성장촉진 비료",desc:"모든 작물 성장 시간 추가 10% 단축",cost:450},
+    clover:{icon:"🍀",name:"행운의 네잎클로버",desc:"수확 시 15% 확률로 보상 2배",cost:800}
+  },
+  // 기관별 순찰 방해요소 (도둑/해커/보이스피싱범) -- 방치하면 골드 피해, 순찰하면 보너스 지급
+  threatTypes:{
+    thief:{icon:"🥷",name:"도둑",desc:"금고를 노리는 도둑이 침입했습니다!"},
+    hacker:{icon:"💻",name:"해커",desc:"전산망을 노리는 해커가 침입을 시도합니다!"},
+    phishing:{icon:"📞",name:"보이스피싱범",desc:"직원을 노린 보이스피싱 시도가 감지되었습니다!"}
   },
   // 본부 미션 풀 (2D 버전 MISSION_POOL/RULE_LIST 참고, 간략화된 버전)
   ruleList:[
@@ -112,9 +120,10 @@ window.KOMSCO.GameSystems = {
       inventory:{potato:0,carrot:0,sweetpotato:0,tomato:0,corn:0,strawberry:0,watermelon:0,pumpkin:0,apple:0,coconut:0,orange:0,pineapple:0},
       quests:[false,false,false,false],
       farm:Array.from({length:12},()=>({seed:null,plantedAt:0,growMs:0})),
-      upgrades:{water:false,scarecrow:false,pet:false},
+      upgrades:{water:false,scarecrow:false,pet:false,fertilizer:false,clover:false},
       missionIndex:{HQ:0,MINT:0,LAB:0,H2_ID:0,H2_PAPER:0},
-      farmDisturbance:{cellIdx:-1,expiresAt:0}
+      farmDisturbance:{cellIdx:-1,expiresAt:0},
+      institutionThreats:{}
     };
   }
 };
