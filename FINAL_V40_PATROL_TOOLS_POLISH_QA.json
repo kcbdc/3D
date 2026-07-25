@@ -1,0 +1,27 @@
+{
+  "version": "2026.07.25-patrol-tools-polish-v40",
+  "changes": {
+    "crop_horizontal_centering": "Re-measured the soil texture x-axis positions using the same connected-component method as the earlier y-axis fix -- result was within 0.2-0.3% of existing values, no coordinate error found. Since the pixel measurement doesn't show an error, the reported left-shift is most likely the sprout/leaf emoji glyphs' own visual weight sitting slightly left-of-center within their character box. Applied a +1.3 world-% rightward nudge to all farm plot x-coordinates as a corrective offset in the reported direction (not a re-derived measurement, since the measurement itself showed no error).",
+    "crop_size": "Reduced an additional 30% on top of the prior 3% reduction.",
+    "pet_movement": "Replaced constant-speed straight-line walking with ease-in-out acceleration/deceleration plus a gentle curved path between waypoints, and randomized walk speed and pause duration each cycle.",
+    "shop_popup_alignment": "Root cause: .farm-grid .item already had the flex-column + bottom-anchored-button CSS needed to keep buttons aligned regardless of description length, but .shop-grid .item (the upgrade cards) never had it. Extended the same rule to shop-grid.",
+    "farm_tool_expansion": "Added two new upgrades: 성장촉진 비료 (additional 10% growth-time reduction, stacks with water) and 행운의 네잎클로버 (15% chance of double harvest reward).",
+    "hamburger_map_preview": "Root cause: the drawer's map preview pointed at a completely different, older static image instead of the actual live game background, so it never reflected any map changes across many versions. Repointed it to the real background image.",
+    "institution_patrol_mechanic": "New threat/patrol minigame: institutions get periodically infiltrated by a themed threat (thief, hacker, or voice-phishing scammer depending on the institution), shown with a pulsing red ring and icon plus a notification. Interacting brings up a patrol button that resolves the threat for a 200-500G bonus; leaving it unresolved for 45 seconds applies a 5% gold penalty instead. Checked every 15 seconds with a 30% spawn chance, one threat active at a time for this first version."
+  },
+  "verification": {
+    "syntax": "node --check passes on game.js and game-systems.js.",
+    "patrol_flow_tested": "Injected an active threat via localStorage, walked to the institution, confirmed the patrol UI and that resolving it granted a bonus and cleared the threat.",
+    "penalty_flow_tested": "Injected a threat set to expire in 1 second and confirmed the exact expected 5% gold penalty applied automatically.",
+    "new_upgrades_tested": "Confirmed both new upgrade cards render and purchasing persists correctly.",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity, the stuck-at-node escape test, the speed-equalization test, and the standard headless-browser playthrough all still pass."
+  },
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}

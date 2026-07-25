@@ -7,7 +7,7 @@ const WORLD=KOMSCO.WORLD,PATH=KOMSCO.PathEngine,SYS=KOMSCO.GameSystems;
 const CHARS=SYS.characters,SEEDS=SYS.seeds,CHAR_BASE="./public/assets/characters/";
 const DAY="./public/assets/world/world_day.png",NIGHT="./public/assets/world/world_exact_map.png";
 const DPR=Math.min(devicePixelRatio||1, innerWidth<900?1.35:1.75);
-let W=0,H=0,bgRect={x:0,y:0,w:1,h:1},bgDay,bgNight,last=performance.now(),selected=null,started=false,autoPath=[],currentEdge=null,lastUiUpdate=0,lastPetTick=0,lastDisturbanceTick=0,resizeSettleTimer=null;
+let W=0,H=0,bgRect={x:0,y:0,w:1,h:1},bgDay,bgNight,last=performance.now(),selected=null,started=false,autoPath=[],currentEdge=null,lastUiUpdate=0,lastPetTick=0,lastDisturbanceTick=0,lastThreatTick=0,resizeSettleTimer=null;
 const images={},keys={},dpad={up:false,down:false,left:false,right:false};let state=SYS.newState();
 
 const isDay=()=>{const h=new Date().getHours();return h>=5&&h<19};
@@ -173,15 +173,27 @@ function drawHotspots(){
     const p=w2s(h.x,h.y);
     const near=isNearHotspot(h,idx);
     const pulse=Math.sin(t*3)*1.5;
+    const threat=state.institutionThreats[h.node];
+    const threatActive=threat&&Date.now()<threat.expiresAt;
     ctx.save();
-    ctx.fillStyle=near?"rgba(255,230,96,.20)":"rgba(255,255,255,.035)";
-    ctx.strokeStyle=near?"#ffe878":h.color;
+    ctx.fillStyle=threatActive?"rgba(255,60,60,.22)":near?"rgba(255,230,96,.20)":"rgba(255,255,255,.035)";
+    ctx.strokeStyle=threatActive?"#ff4444":near?"#ffe878":h.color;
     ctx.shadowColor=ctx.strokeStyle;
-    ctx.shadowBlur=near?22:13;
-    ctx.lineWidth=near?4:2.5;
+    ctx.shadowBlur=threatActive?26:near?22:13;
+    ctx.lineWidth=threatActive?5:near?4:2.5;
     ctx.beginPath();
     ctx.ellipse(p.x,p.y,25+pulse,10+pulse*.25,0,0,Math.PI*2);
     ctx.fill();ctx.stroke();ctx.restore();
+    if(threatActive){
+      const tt=SYS.threatTypes[threat.type];
+      if(tt){
+        ctx.save();
+        ctx.font="22px serif";ctx.textAlign="center";ctx.textBaseline="middle";
+        ctx.shadowColor="rgba(255,60,60,.9)";ctx.shadowBlur=12;
+        ctx.fillText(tt.icon,p.x,p.y-24-Math.abs(pulse));
+        ctx.restore();
+      }
+    }
   });
 }
 function drawCrops(){
@@ -191,7 +203,7 @@ function drawCrops(){
     const pos=plots[i];
     const p=w2s(pos[0],pos[1]);
     const growth=Math.min(1,(Date.now()-f.plantedAt)/f.growMs);
-    const size=(24+growth*10)*0.97; // 3% 크기 축소
+    const size=(24+growth*10)*0.97*0.7; // 기존 3% 축소에 이어 추가로 30% 축소
     const stageEmoji=growth>=1?SEEDS[f.seed].emoji:growth<0.34?"🌱":growth<0.7?"🌿":SEEDS[f.seed].emoji;
     // 새싹 단계부터 눈에 잘 띄도록, 모든 성장 단계에서 부드러운 원형 배경(halo)을 밭 중심(땅
     // 높이)에 먼저 깔아줌
@@ -239,25 +251,34 @@ function updatePetWander(bounds){
  lastPetFrameTime=now;
  if(!petWander){
    const cx=(bounds.minX+bounds.maxX)/2,cy=(bounds.minY+bounds.maxY)/2;
-   petWander={x:cx,y:cy,tx:cx,ty:cy,pausedUntil:0,facingLeft:false,walking:false};
+   petWander={x:cx,y:cy,fromX:cx,fromY:cy,tx:cx,ty:cy,curveX:cx,curveY:cy,t:1,duration:1,pausedUntil:now+1000,facingLeft:false,walking:false};
  }
  const p=petWander;
- if(now<p.pausedUntil){p.walking=false;return p}
- const dx=p.tx-p.x,dy=p.ty-p.y,dist=Math.hypot(dx,dy);
- if(dist<0.35){
-   // 도착: 잠깐 멈춰서 쉬었다가, 밭 안의 새로운 목표 지점을 골라 다시 걷기 시작
+ if(p.t>=1){
+   if(now<p.pausedUntil){p.walking=false;return p}
+   // 쉬는 시간이 끝나면 새로운 목표 지점과, 완전한 직선이 아니라 살짝 휘어지는 경로(2차
+   // 베지어 곡선)를 정해서 다시 걷기 시작 -- 매번 속도도 조금씩 다르게 해서 기계적으로
+   // 반복되는 느낌을 줄임
+   p.fromX=p.x;p.fromY=p.y;
    p.tx=bounds.minX+Math.random()*(bounds.maxX-bounds.minX);
    p.ty=bounds.minY+Math.random()*(bounds.maxY-bounds.minY);
-   p.pausedUntil=now+700+Math.random()*1600;
-   p.walking=false;
- }else{
-   const speed=3.4; // world-units/sec, 자연스러운 걷는 속도
-   const step=Math.min(speed*dt,dist);
-   p.facingLeft=dx<0;
-   p.x+=(dx/dist)*step;
-   p.y+=(dy/dist)*step;
-   p.walking=true;
+   const midX=(p.fromX+p.tx)/2,midY=(p.fromY+p.ty)/2;
+   const dx=p.tx-p.fromX,dy=p.ty-p.fromY,len=Math.hypot(dx,dy)||1;
+   const curveAmt=(Math.random()-0.5)*len*0.35;
+   p.curveX=midX+(-dy/len)*curveAmt;
+   p.curveY=midY+(dx/len)*curveAmt;
+   p.duration=Math.max(0.6,len/(2.6+Math.random()*1.3));
+   p.t=0;
  }
+ p.t=Math.min(1,p.t+dt/p.duration);
+ const eased=p.t<0.5?2*p.t*p.t:1-Math.pow(-2*p.t+2,2)/2; // ease-in-out: 출발/도착 시 자연스러운 가감속
+ const omt=1-eased;
+ const newX=omt*omt*p.fromX+2*omt*eased*p.curveX+eased*eased*p.tx;
+ const newY=omt*omt*p.fromY+2*omt*eased*p.curveY+eased*eased*p.ty;
+ p.facingLeft=(newX-p.x)<-0.001;
+ p.x=newX;p.y=newY;
+ p.walking=true;
+ if(p.t>=1)p.pausedUntil=now+700+Math.random()*1600;
  return p;
 }
 function drawFarmDecor(){
@@ -501,7 +522,12 @@ function update(dt){
   }
   if(now-lastDisturbanceTick>4000){
     farmDisturbanceTick();
+    institutionThreatExpiryCheck();
     lastDisturbanceTick=now;
+  }
+  if(now-lastThreatTick>15000){
+    institutionThreatTick();
+    lastThreatTick=now;
   }
 }
 
@@ -533,9 +559,58 @@ function startAuto(h){
 }
 function interact(){const h=getNear();if(!h){toast("상호작용 원 안으로 이동하세요.");return}if(h.type==="work")doWork(h);if(h.type==="shop")openShop();if(h.type==="farm")openFarm()}
 function doWork(h){
+ const threat=state.institutionThreats[h.node];
+ if(threat&&Date.now()<threat.expiresAt){openThreatResponse(h,threat);return}
  const pool=SYS.missionPool[h.node];
  if(pool&&pool.length){openMission(h,pool);return}
  const reward=Math.round(h.reward*CHARS[state.character].reward);state.gold+=reward;recalcLevel();state.quests[0]=true;save();toast(`${h.label} 업무 완료 · +${reward}G`)
+}
+function openThreatResponse(h,threat){
+ const tt=SYS.threatTypes[threat.type];
+ const secondsLeft=Math.max(0,Math.round((threat.expiresAt-Date.now())/1000));
+ openModal(`<h2>${tt.icon} ${tt.name} 발생!</h2><p>${tt.desc}</p><p style="opacity:.75;font-size:13px;">${h.label} · 남은 시간 약 ${secondsLeft}초</p>
+   <button type="button" id="patrolBtn" class="ai-advisor-btn">🚨 순찰하기 (위협 제거)</button>`);
+ document.getElementById("patrolBtn").addEventListener("click",()=>resolveThreat(h));
+}
+function resolveThreat(h){
+ const bonus=200+Math.round(Math.random()*300);
+ state.gold+=bonus;
+ delete state.institutionThreats[h.node];
+ save();
+ toast(`✅ 순찰 성공! ${h.label} 위협을 제거했습니다 · +${bonus}G`);
+ pushNotification("순찰 성공",`${h.label}의 위협을 무사히 제거하고 보너스 ${bonus}G를 받았습니다.`);
+ closeModal();
+}
+function institutionThreatTick(){
+ const map={HQ:"thief",MINT:"hacker",LAB:"hacker",H2_ID:"phishing",H2_PAPER:"thief"};
+ const nodes=Object.keys(map);
+ const anyActive=nodes.some(n=>{const t=state.institutionThreats[n];return t&&Date.now()<t.expiresAt});
+ if(anyActive)return; // 한 번에 하나의 위협만 발생 (너무 정신없지 않도록 단순화)
+ if(Math.random()>0.3)return; // 15초 틱마다 30% 확률로만 새 위협 발생
+ const node=nodes[Math.floor(Math.random()*nodes.length)];
+ const type=map[node];
+ state.institutionThreats[node]={type,expiresAt:Date.now()+45000}; // 45초 안에 순찰해야 함
+ const tt=SYS.threatTypes[type];
+ const h=WORLD.hotspots.find(x=>x.node===node);
+ pushNotification(`${tt.icon} ${tt.name} 침입 경고`,`${h?h.label:node}에 ${tt.desc}`);
+ save();
+}
+// 만료된(방치된) 위협에 골드 피해를 적용 -- institutionThreatTick과 별개로, 렌더링 루프 근처에서
+// 매 틱 확인
+function institutionThreatExpiryCheck(){
+ for(const node of Object.keys(state.institutionThreats)){
+   const threat=state.institutionThreats[node];
+   if(threat&&Date.now()>=threat.expiresAt){
+     const tt=SYS.threatTypes[threat.type];
+     const h=WORLD.hotspots.find(x=>x.node===node);
+     const loss=Math.round(state.gold*0.05);
+     state.gold=Math.max(0,state.gold-loss);
+     delete state.institutionThreats[node];
+     save();
+     toast(`❌ ${h?h.label:node}의 ${tt?tt.name:""} 위협을 놓쳐 ${loss}G를 잃었습니다.`);
+     pushNotification("순찰 실패",`${h?h.label:node}의 위협에 제때 대응하지 못해 ${loss}G의 피해를 입었습니다.`);
+   }
+ }
 }
 function shuffleArray(arr){
  const a=arr.slice();
@@ -592,7 +667,7 @@ function buySeed(id){const s=SEEDS[id];if(state.gold<s.price){toast("골드가 �
 function flashGold(){const el=ui("goldText");if(!el)return;el.classList.remove("flash");void el.offsetWidth;el.classList.add("flash")}
 function openFarm(){let html="<h2>🌿 주말농장</h2><p>각 밭을 선택해 씨앗을 심고 성장 후 수확하세요.</p><div class='farm-grid'>";state.farm.forEach((f,i)=>{if(!f.seed)html+=`<article class=item><h3>밭 ${i+1}</h3><button data-plot="${i}">씨앗 심기</button></article>`;else{const left=Math.max(0,f.growMs-(Date.now()-f.plantedAt));const growth=Math.min(1,(Date.now()-f.plantedAt)/f.growMs);const stageEmoji=growth>=1?SEEDS[f.seed].emoji:growth<0.34?"🌱":growth<0.7?"🌿":SEEDS[f.seed].emoji;html+=`<article class=item><h3>${stageEmoji} 밭 ${i+1}</h3><div class="farm-progress"><div class="farm-progress-bar" style="width:${Math.round(growth*100)}%"></div></div><p>${left?Math.ceil(left/1000)+"초":"수확 가능"}</p><button data-plot="${i}">${left?"확인":"수확"}</button></article>`}});html+="</div>";openModal(html);document.querySelectorAll("[data-plot]").forEach(b=>b.addEventListener("click",()=>usePlot(+b.dataset.plot)))}
 function usePlot(i){const f=state.farm[i];if(!f.seed){let html="<h2>심을 씨앗 선택</h2><div class='shop-grid'>";Object.entries(SEEDS).forEach(([id,s])=>{const owned=state.inventory[id]||0;html+=`<article class="item"><h3>${s.emoji} ${s.name}</h3><p style="opacity:.75;font-size:12px;margin:2px 0;">보유 ${owned}개</p><button type="button" data-plant="${id}" ${owned<=0?"disabled":""}>${owned<=0?"미보유":"심기"}</button></article>`});html+="</div>";openModal(html);document.querySelectorAll("[data-plant]:not(:disabled)").forEach(b=>b.addEventListener("click",()=>plant(i,b.dataset.plant)));return}if(Date.now()-f.plantedAt<f.growMs){toast("아직 성장 중입니다.");return}harvestPlot(i);openFarm()}
-function harvestPlot(i){const f=state.farm[i];if(!f.seed)return false;if(Date.now()-f.plantedAt<f.growMs)return false;const s=SEEDS[f.seed];const reward=Math.round(s.reward*(state.upgrades.scarecrow?1.1:1));state.gold+=reward;state.harvest++;state.quests[3]=true;state.farm[i]={seed:null,plantedAt:0,growMs:0};save();return reward}
+function harvestPlot(i){const f=state.farm[i];if(!f.seed)return false;if(Date.now()-f.plantedAt<f.growMs)return false;const s=SEEDS[f.seed];let reward=Math.round(s.reward*(state.upgrades.scarecrow?1.1:1));const lucky=state.upgrades.clover&&Math.random()<0.15;if(lucky)reward*=2;state.gold+=reward;state.harvest++;state.quests[3]=true;state.farm[i]={seed:null,plantedAt:0,growMs:0};save();if(lucky)toast(`🍀 행운! 수확 보상 2배 · +${reward}G`);return reward}
 function petAutoHarvestTick(){
  if(!state.upgrades.pet)return;
  let total=0,count=0;
@@ -600,7 +675,7 @@ function petAutoHarvestTick(){
  if(count)toast(`🐶 수확도우미가 ${count}개 작물을 자동 수확 · +${total}G`);
 }
 async function serverNow(){try{const r=await fetch("./api/time");if(r.ok)return(await r.json()).now}catch{}return Date.now()}
-async function plant(i,id){state.inventory[id]--;state.seeds--;const growMs=Math.round(SEEDS[id].grow*(state.upgrades.water?0.8:1));state.farm[i]={seed:id,plantedAt:await serverNow(),growMs};state.quests[2]=true;closeModal();save()}
+async function plant(i,id){state.inventory[id]--;state.seeds--;let growMultiplier=1;if(state.upgrades.water)growMultiplier*=0.8;if(state.upgrades.fertilizer)growMultiplier*=0.9;const growMs=Math.round(SEEDS[id].grow*growMultiplier);state.farm[i]={seed:id,plantedAt:await serverNow(),growMs};state.quests[2]=true;closeModal();save()}
 function updateUI(near){ui("goldText").textContent=state.gold.toLocaleString();ui("seedText").textContent=state.seeds;ui("harvestText").textContent=state.harvest;ui("levelText").textContent=state.level;ui("heroName").textContent=CHARS[state.character].name;ui("portrait").src=CHAR_BASE+CHARS[state.character].img;ui("regionText").textContent=near?near.label:(state.player.x>66?"주말농장 지구":"네온 중앙지구");const labels=["회사 본부에서 업무 수행","씨앗상점에서 씨앗 구매","주말농장에 씨앗 심기","다 자란 작물 수확"];ui("questList").innerHTML=labels.map((x,i)=>`<li class="${state.quests[i]?"done":""}">${x} ${state.quests[i]?"1/1":"0/1"}</li>`).join("");ui("inventoryPreview").innerHTML=Object.entries(SEEDS).map(([id,s])=>`<span>${s.emoji}<small>${state.inventory[id]}</small></span>`).join("")}
 function openModal(html){ui("modalBody").innerHTML=html;ui("modal").classList.add("show")}function closeModal(){ui("modal").classList.remove("show")}function toast(t){ui("toast").textContent=t;ui("toast").classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>ui("toast").classList.remove("show"),1700)}
 function save(){localStorage.setItem("komscoExactMapFullscreenRouteV9",JSON.stringify(state))}
@@ -617,6 +692,7 @@ function load(){
      state.inventory=Object.assign({},fresh.inventory,v.inventory||{});
      state.upgrades=Object.assign({},fresh.upgrades,v.upgrades||{});
      state.missionIndex=Object.assign({},fresh.missionIndex,v.missionIndex||{});
+     state.institutionThreats=Object.assign({},v.institutionThreats||{});
      // 방어적 정리: 어떤 이유로든 개수가 NaN/undefined/음수가 되면 구매한 씨앗이 "사라진"
      // 것처럼 보일 수 있으므로, 항상 0 이상의 정수로 되돌림
      for(const id of Object.keys(fresh.inventory)){
@@ -869,7 +945,44 @@ async function fetchOnlineUsers(){
    return data.ok?data.online:[];
  }catch{return[]}
 }
-async function openCommunityPanel(){
+let myFavoriteIds=new Set();
+async function refreshFavoriteIds(){
+ const acc=getAccount();if(!acc)return;
+ try{
+   const res=await fetch(`./api/favorites/list?userId=${encodeURIComponent(acc.id)}`);
+   const data=await res.json();
+   myFavoriteIds=new Set(data.ok?data.favorites.map(f=>f.id):[]);
+ }catch{}
+}
+async function toggleFavorite(targetId){
+ const acc=getAccount();if(!acc)return;
+ try{
+   const res=await fetch("./api/favorites/toggle",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({userId:acc.id,targetId})});
+   const data=await res.json();
+   if(data.ok){
+     if(data.favorited)myFavoriteIds.add(targetId);else myFavoriteIds.delete(targetId);
+     // 지금 보고 있는 탭이 접속자든 연락처든 바로 갱신
+     if(communityActiveTab==="online")await renderOnlineTab();else await renderContactsTab();
+   }
+ }catch{toast("즐겨찾기 처리에 실패했습니다.")}
+}
+// 접속자/검색결과/즐겨찾기/최근대화 어디서든 동일한 형태(온라인 표시·레벨·⭐·✉️)로 렌더링
+function userRowHtml(u){
+ const online=u.is_online===undefined?true:Boolean(u.is_online); // 접속자 목록에서 온 경우 이미 온라인임이 자명
+ const favorited=myFavoriteIds.has(u.id);
+ const levelHtml=(u.level!=null)?`<span style="opacity:.7;font-size:12px;"> · Lv.${u.level}</span>`:"";
+ return `<article class="item"><p>${online?"🟢":"⚫"} ${u.nickname}${levelHtml}</p>
+   <div style="display:flex;gap:6px;">
+     <button type="button" data-fav-user="${u.id}">${favorited?"⭐":"☆"}</button>
+     <button type="button" data-dm-user="${u.id}" data-dm-nick="${u.nickname}">✉️</button>
+   </div></article>`;
+}
+function wireUserRows(container){
+ container.querySelectorAll("[data-fav-user]").forEach(b=>b.addEventListener("click",()=>toggleFavorite(b.dataset.favUser)));
+ container.querySelectorAll("[data-dm-user]").forEach(b=>b.addEventListener("click",()=>openDmThread(b.dataset.dmUser,b.dataset.dmNick)));
+}
+let communityActiveTab="online";
+async function openCommunityPanel(tab){
  const acc=getAccount();
  if(!acc){
    openModal(`<h2>👥 커뮤니티</h2><p>커뮤니티 기능을 사용하려면 먼저 로그인해주세요.</p>
@@ -885,18 +998,77 @@ async function openCommunityPanel(){
    });
    return;
  }
- openModal(`<h2>👥 커뮤니티</h2><p>${acc.nickname}님으로 로그인됨</p><div id="onlineListBox"><p style="opacity:.7;">접속자 목록을 불러오는 중...</p></div><button type="button" id="logoutBtn" class="ai-advisor-btn" style="background:linear-gradient(135deg,#7a2e2e,#4a1717);margin-top:10px;">로그아웃</button>`);
+ communityActiveTab=tab||communityActiveTab||"online";
+ await refreshFavoriteIds();
+ openModal(`<h2>👥 커뮤니티</h2><p>${acc.nickname}님으로 로그인됨</p>
+   <div class="community-tabs">
+     <button type="button" class="community-tab ${communityActiveTab==="online"?"active":""}" data-ctab="online">🟢 접속자</button>
+     <button type="button" class="community-tab ${communityActiveTab==="contacts"?"active":""}" data-ctab="contacts">👥 연락처</button>
+   </div>
+   <div id="communityBody"><p style="opacity:.7;">불러오는 중...</p></div>
+   <button type="button" id="logoutBtn" class="ai-advisor-btn" style="background:linear-gradient(135deg,#7a2e2e,#4a1717);margin-top:10px;">로그아웃</button>`);
+ document.querySelectorAll("[data-ctab]").forEach(b=>b.addEventListener("click",()=>openCommunityPanel(b.dataset.ctab)));
  document.getElementById("logoutBtn").addEventListener("click",()=>{doLogout();closeModal()});
+ if(communityActiveTab==="online")await renderOnlineTab();else await renderContactsTab();
+}
+async function renderOnlineTab(){
+ const box=document.getElementById("communityBody");
+ if(!box)return;
  const online=await fetchOnlineUsers();
- const box=document.getElementById("onlineListBox");
- if(!box)return; // 목록을 불러오는 사이 모달을 닫았을 수 있음
- if(!online.length){
-   box.innerHTML="<p style='opacity:.7;'>현재 접속 중인 다른 사용자가 없습니다.</p>";
-   return;
- }
- box.innerHTML="<h3 style='margin:10px 0 6px;font-size:14px;opacity:.8;'>🟢 접속자 ("+online.length+"명)</h3><div class='shop-grid'>"+
-   online.map(u=>`<article class="item"><p>🟢 ${u.nickname}</p><button type="button" data-dm-user="${u.id}" data-dm-nick="${u.nickname}">✉️ 쪽지</button></article>`).join("")+"</div>";
- box.querySelectorAll("[data-dm-user]").forEach(b=>b.addEventListener("click",()=>openDmThread(b.dataset.dmUser,b.dataset.dmNick)));
+ if(!online.length){box.innerHTML="<p style='opacity:.7;'>현재 접속 중인 다른 사용자가 없습니다.</p>";return}
+ box.innerHTML=`<div class="shop-grid">${online.map(userRowHtml).join("")}</div>`;
+ wireUserRows(box);
+}
+async function renderContactsTab(){
+ const box=document.getElementById("communityBody");
+ if(!box)return;
+ box.innerHTML=`<div class="dm-input-row"><input type="text" id="userSearchInput" placeholder="닉네임으로 검색 (오프라인 포함)"><button type="button" id="userSearchBtn">검색</button></div>
+   <div id="searchResultsBox"></div>
+   <h3 style="margin:14px 0 6px;font-size:14px;opacity:.85;">⭐ 즐겨찾기</h3>
+   <div id="favoritesBox"><p style="opacity:.7;">불러오는 중...</p></div>
+   <h3 style="margin:14px 0 6px;font-size:14px;opacity:.85;">🕑 최근 대화</h3>
+   <div id="recentBox"><p style="opacity:.7;">불러오는 중...</p></div>`;
+ const searchBtn=document.getElementById("userSearchBtn"),searchInput=document.getElementById("userSearchInput");
+ const doSearch=async()=>{
+   const q=searchInput.value.trim();
+   const resBox=document.getElementById("searchResultsBox");
+   if(!q){resBox.innerHTML="";return}
+   const acc=getAccount();
+   try{
+     const res=await fetch(`./api/users/search?q=${encodeURIComponent(q)}&userId=${encodeURIComponent(acc.id)}`);
+     const data=await res.json();
+     const results=data.ok?data.results:[];
+     resBox.innerHTML=results.length?`<div class="shop-grid">${results.map(userRowHtml).join("")}</div>`:"<p style='opacity:.7;'>검색 결과가 없습니다.</p>";
+     wireUserRows(resBox);
+   }catch{resBox.innerHTML="<p style='opacity:.7;'>검색에 실패했습니다.</p>"}
+ };
+ searchBtn.addEventListener("click",doSearch);
+ searchInput.addEventListener("keydown",e=>{if(e.key==="Enter")doSearch()});
+ await Promise.all([renderFavoritesSection(),renderRecentSection()]);
+}
+async function renderFavoritesSection(){
+ const box=document.getElementById("favoritesBox");
+ if(!box)return;
+ const acc=getAccount();
+ try{
+   const res=await fetch(`./api/favorites/list?userId=${encodeURIComponent(acc.id)}`);
+   const data=await res.json();
+   const favs=data.ok?data.favorites:[];
+   box.innerHTML=favs.length?`<div class="shop-grid">${favs.map(userRowHtml).join("")}</div>`:"<p style='opacity:.7;'>즐겨찾기한 사용자가 없습니다.</p>";
+   wireUserRows(box);
+ }catch{box.innerHTML="<p style='opacity:.7;'>불러오지 못했습니다.</p>"}
+}
+async function renderRecentSection(){
+ const box=document.getElementById("recentBox");
+ if(!box)return;
+ const acc=getAccount();
+ try{
+   const res=await fetch(`./api/dm/recent?userId=${encodeURIComponent(acc.id)}`);
+   const data=await res.json();
+   const recent=data.ok?data.recent:[];
+   box.innerHTML=recent.length?`<div class="shop-grid">${recent.map(userRowHtml).join("")}</div>`:"<p style='opacity:.7;'>최근 대화 기록이 없습니다.</p>";
+   wireUserRows(box);
+ }catch{box.innerHTML="<p style='opacity:.7;'>불러오지 못했습니다.</p>"}
 }
 
 /* ===================== 1:1 쪽지 (2단계) ===================== */
