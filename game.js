@@ -7,7 +7,7 @@ const WORLD=KOMSCO.WORLD,PATH=KOMSCO.PathEngine,SYS=KOMSCO.GameSystems;
 const CHARS=SYS.characters,SEEDS=SYS.seeds,CHAR_BASE="./public/assets/characters/";
 const DAY="./public/assets/world/world_day.png",NIGHT="./public/assets/world/world_exact_map.png";
 const DPR=Math.min(devicePixelRatio||1, innerWidth<900?1.35:1.75);
-let W=0,H=0,bgRect={x:0,y:0,w:1,h:1},bgDay,bgNight,last=performance.now(),selected=null,started=false,autoPath=[],currentEdge=null,lastUiUpdate=0,lastPetTick=0,lastDisturbanceTick=0,lastThreatTick=0,resizeSettleTimer=null;
+let W=0,H=0,bgRect={x:0,y:0,w:1,h:1},bgDay,bgNight,last=performance.now(),selected=null,started=false,autoPath=[],currentEdge=null,lastUiUpdate=0,lastPetTick=0,lastDisturbanceTick=0,lastThreatTick=0,lastCarSpawnTick=0,resizeSettleTimer=null;
 const images={},keys={},dpad={up:false,down:false,left:false,right:false};let state=SYS.newState();
 
 const isDay=()=>{const h=new Date().getHours();return h>=5&&h<19};
@@ -145,7 +145,7 @@ function draw(){
  ctx.fillStyle=fallback;ctx.fillRect(0,0,W,H);
  const im=activeBg();
  if(im){updateBgRect();ctx.drawImage(im,bgRect.x,bgRect.y,bgRect.w,bgRect.h)}
- drawGuides();drawHotspots();drawCrops();drawFarmDecor();drawPlayer();
+ drawGuides();drawHotspots();drawCrops();drawFarmDecor();drawCars();drawPlayer();
  drawWeatherOverlay();
 }
 let routeScreenCache=[];
@@ -202,7 +202,7 @@ function drawCrops(){
     if(!f.seed||!plots[i])return;
     const pos=plots[i];
     const p=w2s(pos[0],pos[1]);
-    const growth=Math.min(1,(Date.now()-f.plantedAt)/f.growMs);
+    const {growth}=plotGrowth(i);
     const size=(24+growth*10)*0.97*0.7; // 기존 3% 축소에 이어 추가로 30% 축소
     const stageEmoji=growth>=1?SEEDS[f.seed].emoji:growth<0.34?"🌱":growth<0.7?"🌿":SEEDS[f.seed].emoji;
     // 새싹 단계부터 눈에 잘 띄도록, 모든 성장 단계에서 부드러운 원형 배경(halo)을 밭 중심(땅
@@ -450,7 +450,7 @@ function drawPlayer(){
 }
 
 function update(dt){
-  if(!started)return;
+  if(!started||gameOverActive)return;
 
   let dx=0,dy=0;
 
@@ -503,6 +503,8 @@ function update(dt){
   }
 
   moveOnRoute(dx,dy,dt);
+  updateCars(dt);
+  checkCarCollision();
 
   const near=getNear();
   const hint=ui("interactionHint");
@@ -528,6 +530,10 @@ function update(dt){
   if(now-lastThreatTick>15000){
     institutionThreatTick();
     lastThreatTick=now;
+  }
+  if(now-lastCarSpawnTick>8000){
+    carSpawnTick();
+    lastCarSpawnTick=now;
   }
 }
 
@@ -612,6 +618,78 @@ function institutionThreatExpiryCheck(){
    }
  }
 }
+/* ===================== 도로 위 자동차 (가끔 등장, 충돌 시 게임 종료) ===================== */
+let activeCars=[],gameOverActive=false;
+function carEdgeInfo(edge){
+ const[a,b]=edge,A=WORLD.nodes[a],B=WORLD.nodes[b];
+ const vx=B[0]-A[0],vy=B[1]-A[1],len=Math.hypot(vx,vy)||1;
+ return{A,B,vx,vy,len};
+}
+function carConnectedEdges(nodeId){return WORLD.edges.filter(([a,b])=>a===nodeId||b===nodeId)}
+function spawnCar(){
+ const edges=WORLD.edges;
+ const edge=edges[Math.floor(Math.random()*edges.length)];
+ activeCars.push({edge,t:Math.random()<0.5?0:1,forward:Math.random()<0.5,speed:11+Math.random()*4,hopsLeft:4+Math.floor(Math.random()*4)});
+}
+function carSpawnTick(){
+ if(activeCars.length<2&&Math.random()<0.3)spawnCar();
+}
+function updateCars(dt){
+ for(let i=activeCars.length-1;i>=0;i--){
+   const c=activeCars[i];
+   const info=carEdgeInfo(c.edge);
+   const step=worldStep(c.forward?info.vx:-info.vx,c.forward?info.vy:-info.vy,c.speed,dt);
+   const stepLen=Math.hypot(step.x,step.y);
+   c.t+=(c.forward?1:-1)*(stepLen/(info.len||1));
+   if(c.t>=1||c.t<=0){
+     c.hopsLeft--;
+     if(c.hopsLeft<=0){activeCars.splice(i,1);continue}
+     const atNode=c.t>=1?c.edge[1]:c.edge[0];
+     const options=carConnectedEdges(atNode).filter(e=>!(e[0]===c.edge[0]&&e[1]===c.edge[1])&&!(e[0]===c.edge[1]&&e[1]===c.edge[0]));
+     const nextEdge=options.length?options[Math.floor(Math.random()*options.length)]:c.edge;
+     c.edge=nextEdge;
+     c.forward=nextEdge[0]===atNode;
+     c.t=c.forward?0:1;
+   }
+ }
+}
+function carWorldPos(c){
+ const info=carEdgeInfo(c.edge);
+ return{x:info.A[0]+info.vx*c.t,y:info.A[1]+info.vy*c.t};
+}
+function drawCars(){
+ activeCars.forEach(c=>{
+   const pos=carWorldPos(c);
+   const p=w2s(pos.x,pos.y);
+   const info=carEdgeInfo(c.edge);
+   const dirX=c.forward?info.vx:-info.vx;
+   const facingLeft=dirX<0;
+   ctx.save();
+   ctx.font="24px serif";ctx.textAlign="center";ctx.textBaseline="middle";
+   ctx.shadowColor="rgba(0,0,0,.6)";ctx.shadowBlur=6;
+   if(facingLeft){ctx.translate(p.x,p.y);ctx.scale(-1,1);ctx.fillText("🚗",0,0)}
+   else ctx.fillText("🚗",p.x,p.y);
+   ctx.restore();
+ });
+}
+function checkCarCollision(){
+ if(gameOverActive)return;
+ for(const c of activeCars){
+   const pos=carWorldPos(c);
+   if(Math.hypot(state.player.x-pos.x,state.player.y-pos.y)<2.2){
+     triggerGameOver();
+     return;
+   }
+ }
+}
+function triggerGameOver(){
+ if(gameOverActive)return;
+ gameOverActive=true;
+ openModal(`<h2>🚨 게임 종료</h2><p>도로 위 자동차와 충돌했습니다!</p><p style="opacity:.75;font-size:13px;">저장된 골드·인벤토리·농장은 그대로 남아있습니다. 다시 시작하면 처음 위치에서 이어집니다.</p><button type="button" id="gameOverRestartBtn" class="ai-advisor-btn">🔄 다시 시작</button>`);
+ const closeBtn=document.querySelector(".modal-card>button");
+ if(closeBtn)closeBtn.style.display="none";
+ document.getElementById("gameOverRestartBtn").addEventListener("click",()=>location.reload());
+}
 function shuffleArray(arr){
  const a=arr.slice();
  for(let i=a.length-1;i>0;i--){
@@ -665,9 +743,27 @@ function openShop(){let html="<h2>🌱 씨앗상점</h2><div class='shop-grid'>"
 function buyUpgrade(id){const u=SYS.upgrades[id];if(state.upgrades[id]){toast("이미 보유한 도구입니다.");return}if(state.gold<u.cost){toast("골드가 부족합니다.");return}state.gold-=u.cost;state.upgrades[id]=true;save();toast(`${u.icon} ${u.name} 구매 완료!`);flashGold();openShop()}
 function buySeed(id){const s=SEEDS[id];if(state.gold<s.price){toast("골드가 부족합니다.");return}state.gold-=s.price;state.inventory[id]++;state.seeds++;state.quests[1]=true;save();toast(`${s.emoji} ${s.name} 구매완료! (보유 ${state.inventory[id]}개, 잔액 ${state.gold.toLocaleString()}G)`);flashGold();openShop()}
 function flashGold(){const el=ui("goldText");if(!el)return;el.classList.remove("flash");void el.offsetWidth;el.classList.add("flash")}
-function openFarm(){let html="<h2>🌿 주말농장</h2><p>각 밭을 선택해 씨앗을 심고 성장 후 수확하세요.</p><div class='farm-grid'>";state.farm.forEach((f,i)=>{if(!f.seed)html+=`<article class=item><h3>밭 ${i+1}</h3><button data-plot="${i}">씨앗 심기</button></article>`;else{const left=Math.max(0,f.growMs-(Date.now()-f.plantedAt));const growth=Math.min(1,(Date.now()-f.plantedAt)/f.growMs);const stageEmoji=growth>=1?SEEDS[f.seed].emoji:growth<0.34?"🌱":growth<0.7?"🌿":SEEDS[f.seed].emoji;html+=`<article class=item><h3>${stageEmoji} 밭 ${i+1}</h3><div class="farm-progress"><div class="farm-progress-bar" style="width:${Math.round(growth*100)}%"></div></div><p>${left?Math.ceil(left/1000)+"초":"수확 가능"}</p><button data-plot="${i}">${left?"확인":"수확"}</button></article>`}});html+="</div>";openModal(html);document.querySelectorAll("[data-plot]").forEach(b=>b.addEventListener("click",()=>usePlot(+b.dataset.plot)))}
-function usePlot(i){const f=state.farm[i];if(!f.seed){let html="<h2>심을 씨앗 선택</h2><div class='shop-grid'>";Object.entries(SEEDS).forEach(([id,s])=>{const owned=state.inventory[id]||0;html+=`<article class="item"><h3>${s.emoji} ${s.name}</h3><p style="opacity:.75;font-size:12px;margin:2px 0;">보유 ${owned}개</p><button type="button" data-plant="${id}" ${owned<=0?"disabled":""}>${owned<=0?"미보유":"심기"}</button></article>`});html+="</div>";openModal(html);document.querySelectorAll("[data-plant]:not(:disabled)").forEach(b=>b.addEventListener("click",()=>plant(i,b.dataset.plant)));return}if(Date.now()-f.plantedAt<f.growMs){toast("아직 성장 중입니다.");return}harvestPlot(i);openFarm()}
-function harvestPlot(i){const f=state.farm[i];if(!f.seed)return false;if(Date.now()-f.plantedAt<f.growMs)return false;const s=SEEDS[f.seed];let reward=Math.round(s.reward*(state.upgrades.scarecrow?1.1:1));const lucky=state.upgrades.clover&&Math.random()<0.15;if(lucky)reward*=2;state.gold+=reward;state.harvest++;state.quests[3]=true;state.farm[i]={seed:null,plantedAt:0,growMs:0};save();if(lucky)toast(`🍀 행운! 수확 보상 2배 · +${reward}G`);return reward}
+function plotGrowth(i){
+ const f=state.farm[i];
+ if(!f||!f.seed)return{growth:0,left:0,ready:false};
+ const growMs=Number(f.growMs),plantedAt=Number(f.plantedAt),now=Date.now();
+ // 방어적 검증: growMs/plantedAt이 어떤 이유로든 손상되면(NaN, 0 이하, 미래 시각 등)
+ // "심자마자 수확 가능"처럼 안전하지 않은 쪽으로 판단하지 않고, 항상 미완료로 처리하며
+ // 데이터를 지금 시각으로 리셋해 정상적인 성장 절차를 다시 밟도록 함
+ if(!Number.isFinite(growMs)||growMs<=0||!Number.isFinite(plantedAt)||plantedAt<=0||plantedAt>now){
+   f.plantedAt=now;
+   if(!Number.isFinite(growMs)||growMs<=0)f.growMs=SEEDS[f.seed]?SEEDS[f.seed].grow:60000;
+   save();
+   return{growth:0,left:f.growMs,ready:false};
+ }
+ const elapsed=now-plantedAt;
+ const growth=Math.min(1,elapsed/growMs);
+ const left=Math.max(0,growMs-elapsed);
+ return{growth,left,ready:left<=0};
+}
+function openFarm(){let html="<h2>🌿 주말농장</h2><p>각 밭을 선택해 씨앗을 심고 성장 후 수확하세요.</p><div class='farm-grid'>";state.farm.forEach((f,i)=>{if(!f.seed)html+=`<article class=item><h3>밭 ${i+1}</h3><button data-plot="${i}">씨앗 심기</button></article>`;else{const{growth,left,ready}=plotGrowth(i);const stageEmoji=growth>=1?SEEDS[f.seed].emoji:growth<0.34?"🌱":growth<0.7?"🌿":SEEDS[f.seed].emoji;html+=`<article class=item><h3>${stageEmoji} 밭 ${i+1}</h3><div class="farm-progress"><div class="farm-progress-bar" style="width:${Math.round(growth*100)}%"></div></div><p>${ready?"수확 가능":Math.ceil(left/1000)+"초"}</p><button data-plot="${i}">${ready?"수확":"확인"}</button></article>`}});html+="</div>";openModal(html);document.querySelectorAll("[data-plot]").forEach(b=>b.addEventListener("click",()=>usePlot(+b.dataset.plot)))}
+function usePlot(i){const f=state.farm[i];if(!f.seed){let html="<h2>심을 씨앗 선택</h2><div class='shop-grid'>";Object.entries(SEEDS).forEach(([id,s])=>{const owned=state.inventory[id]||0;html+=`<article class="item"><h3>${s.emoji} ${s.name}</h3><p style="opacity:.75;font-size:12px;margin:2px 0;">보유 ${owned}개</p><button type="button" data-plant="${id}" ${owned<=0?"disabled":""}>${owned<=0?"미보유":"심기"}</button></article>`});html+="</div>";openModal(html);document.querySelectorAll("[data-plant]:not(:disabled)").forEach(b=>b.addEventListener("click",()=>plant(i,b.dataset.plant)));return}if(!plotGrowth(i).ready){toast("아직 성장 중입니다.");return}harvestPlot(i);openFarm()}
+function harvestPlot(i){const f=state.farm[i];if(!f.seed)return false;if(!plotGrowth(i).ready)return false;const s=SEEDS[f.seed];let reward=Math.round(s.reward*(state.upgrades.scarecrow?1.1:1));const lucky=state.upgrades.clover&&Math.random()<0.15;if(lucky)reward*=2;state.gold+=reward;state.harvest++;state.quests[3]=true;state.farm[i]={seed:null,plantedAt:0,growMs:0};save();if(lucky)toast(`🍀 행운! 수확 보상 2배 · +${reward}G`);return reward}
 function petAutoHarvestTick(){
  if(!state.upgrades.pet)return;
  let total=0,count=0;

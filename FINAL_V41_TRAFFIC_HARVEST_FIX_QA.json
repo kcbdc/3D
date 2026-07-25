@@ -1,0 +1,32 @@
+{
+  "version": "2026.07.25-traffic-harvest-fix-v41",
+  "changes": {
+    "realtime_weather": "Already implemented, including periodic refresh: fetchWeather() runs at startup and again every 15 minutes via setInterval. This was already present before this session; verified it's genuinely in place rather than changed.",
+    "crop_position_finetune": "No new specific direction was given this round beyond the general already-addressed goal, so no further coordinate change was made without more specific feedback.",
+    "harvest_button_bug": {
+      "root_cause_hypothesis": "Could not reproduce the exact sequence directly, but found the specific failure mode that would cause it: if growMs or plantedAt ever became invalid (NaN, zero, corrupted), the old 'elapsed < growMs' comparison against NaN is always false in JavaScript, so the still-growing check would never block harvesting -- matching 'harvest available right after planting'.",
+      "fix": "Added a shared plotGrowth(i) helper used consistently by openFarm(), usePlot(), harvestPlot(), and drawCrops(). It validates growMs/plantedAt are sane; if not, treats the plot as not ready and auto-repairs by resetting plantedAt to now.",
+      "verified": "Injected a deliberately corrupted plot and confirmed it was auto-repaired to a valid state on the next render instead of being immediately harvestable."
+    },
+    "road_traffic_hazard": {
+      "what_was_built": "Cars occasionally spawn on random road segments (checked every 8s, 30% chance, capped at 2 concurrent) and travel the road graph, turning at junctions, despawning after a few hops. Car speed uses the same pixel-equalized worldStep helper as player movement.",
+      "collision": "Player within 2.2 world-units of a car ends the game immediately with a game-over screen; its close button is hidden so only the restart button can dismiss it.",
+      "restart_behavior": "Restart reloads the page without touching localStorage, so gold/inventory/farm/upgrades all survive -- only play position resets. Flagging this interpretation explicitly in case a full save wipe was actually intended instead."
+    }
+  },
+  "verification": {
+    "syntax": "node --check passes on game.js and game-systems.js.",
+    "harvest_fix_tested": "Confirmed corrupted-plot auto-repair via direct localStorage injection.",
+    "car_collision_tested": "Reproduced the collision -> game-over screen naturally during live play across two separate test runs.",
+    "restart_gold_preservation_tested": "Confirmed gold set before the game loads survives a collision + restart cycle.",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity, the stuck-at-node escape test, the speed-equalization test, and the standard headless-browser playthrough all still pass."
+  },
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}
