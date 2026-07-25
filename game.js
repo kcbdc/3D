@@ -205,7 +205,7 @@ function drawCrops(){
     }
     ctx.save();
     ctx.font=`${size}px serif`;
-    ctx.textAlign="center";
+    ctx.textAlign="center";ctx.textBaseline="middle";
     ctx.shadowColor=growth>=1?"rgba(255,224,102,.9)":"rgba(58,255,126,.75)";
     ctx.shadowBlur=growth>=1?12:8;
     if(growth<1&&growth>=0.7)ctx.globalAlpha=0.75; // growing-but-not-ready phase reuses the final emoji at reduced opacity + smaller size, so it visibly differs from the fully-ready state
@@ -214,7 +214,7 @@ function drawCrops(){
     if(growth>=1){
       ctx.save();
       ctx.font="12px serif";
-      ctx.textAlign="center";
+      ctx.textAlign="center";ctx.textBaseline="middle";
       ctx.fillText("✨",p.x+size*0.55,p.y-size*0.55);
       ctx.restore();
     }
@@ -258,7 +258,7 @@ function drawFarmDecor(){
  // 허수아비 영웅: 밭 위쪽 가장자리에 배치 (표준 유니코드에 허수아비 이모지가 없어 농부 이모지로 대체 표현)
  if(state.upgrades.scarecrow){
    const p=w2s(cx,minY-4.2);
-   ctx.save();ctx.font="26px serif";ctx.textAlign="center";ctx.shadowColor="rgba(255,214,102,.8)";ctx.shadowBlur=10;ctx.fillText("🧑‍🌾",p.x,p.y);ctx.restore();
+   ctx.save();ctx.font="26px serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.shadowColor="rgba(255,214,102,.8)";ctx.shadowBlur=10;ctx.fillText("🧑‍🌾",p.x,p.y);ctx.restore();
  }
  // 수확도우미 댕댕이: 밭 안에서 목표 지점을 향해 자연스럽게 걷다가 도착하면 잠깐 쉬고,
  // 다시 새 목표를 골라 걷는 방식 (이전의 sine파 미끄러짐보다 훨씬 동물답게 움직임)
@@ -268,7 +268,7 @@ function drawFarmDecor(){
    const pet=updatePetWander(bounds);
    const bob=pet.walking?Math.abs(Math.sin(Date.now()/140))*1.1:0;
    const p=w2s(pet.x,pet.y-bob*0.05);
-   ctx.save();ctx.font="22px serif";ctx.textAlign="center";
+   ctx.save();ctx.font="22px serif";ctx.textAlign="center";ctx.textBaseline="middle";
    if(pet.facingLeft){ctx.translate(p.x,p.y);ctx.scale(-1,1);ctx.fillText("🐕",0,0)}
    else ctx.fillText("🐕",p.x,p.y);
    ctx.restore();
@@ -279,7 +279,7 @@ function drawFarmDecor(){
    const pos=plots[dist.cellIdx];
    const bob=Math.sin(Date.now()/200)*3;
    const p=w2s(pos[0],pos[1]-4);
-   ctx.save();ctx.font="20px serif";ctx.textAlign="center";ctx.fillText("🐦‍⬛",p.x,p.y+bob);ctx.restore();
+   ctx.save();ctx.font="20px serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("🐦‍⬛",p.x,p.y+bob);ctx.restore();
  }
 }
 function farmDisturbanceTick(){
@@ -594,6 +594,12 @@ function load(){
      state.inventory=Object.assign({},fresh.inventory,v.inventory||{});
      state.upgrades=Object.assign({},fresh.upgrades,v.upgrades||{});
      state.missionIndex=Object.assign({},fresh.missionIndex,v.missionIndex||{});
+     // 방어적 정리: 어떤 이유로든 개수가 NaN/undefined/음수가 되면 구매한 씨앗이 "사라진"
+     // 것처럼 보일 수 있으므로, 항상 0 이상의 정수로 되돌림
+     for(const id of Object.keys(fresh.inventory)){
+       const n=Number(state.inventory[id]);
+       state.inventory[id]=Number.isFinite(n)&&n>0?Math.floor(n):0;
+     }
    }
  }catch(error){
    console.warn("저장 데이터 복구 실패",error);

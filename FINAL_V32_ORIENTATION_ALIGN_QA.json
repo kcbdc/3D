@@ -1,0 +1,33 @@
+{
+  "version": "2026.07.25-orientation-align-v32",
+  "changes": {
+    "native_share_sheet_orientation": {
+      "problem": "The native OS share sheet (opened by the KakaoTalk button, via navigator.share) always renders in the device's true physical orientation, which stayed portrait because our landscape look is faked entirely with a CSS rotation trick -- the device itself never actually became landscape.",
+      "fix": "lockLandscape() now also requests Fullscreen before attempting screen.orientation.lock('landscape'). Most mobile browsers only allow the orientation lock to succeed inside a fullscreen context; without it the lock silently fails (which is what was happening every time before). If fullscreen + lock succeeds, the device genuinely becomes landscape at the OS level, so the native share sheet (and any other OS UI) will naturally render landscape too -- no more CSS trick needed for that session.",
+      "caveat_not_guaranteed": "Not every browser/OS combination allows a page to both go fullscreen and lock orientation (iOS Safari in particular does not support orientation lock at all, and some Android browsers restrict it further). Where it's not supported, lockLandscape() fails gracefully exactly as before and the CSS rotation trick keeps working as the fallback -- so this is a pure improvement with no regression risk, but it may not fix the share-sheet orientation on every device."
+    },
+    "crop_sprite_centering": {
+      "root_cause": "Every emoji drawn on the canvas (crops, the scarecrow, the pet, the crow) set ctx.textAlign='center' but never set ctx.textBaseline. Canvas defaults textBaseline to 'alphabetic', which anchors the BOTTOM of the glyph near the given y-coordinate rather than centering it -- so every sprite was rendered visibly offset above its true plot-center coordinate. This is a well-documented Canvas API default, not a data/coordinate problem: the farmPlots coordinate array itself is a correctly evenly-spaced 3x4 grid.",
+      "fix": "Added ctx.textBaseline='middle' alongside every ctx.textAlign='center' in drawCrops() and drawFarmDecor() (crops, sprout progress stages, the sparkle mark, scarecrow, pet, crow), so every sprite is now vertically centered on its intended coordinate -- crops should now visibly sit in the exact center of their plot."
+    },
+    "purchased_seeds_disappearing": {
+      "investigation": "Could not reproduce with a live browser test: bought pineapple and coconut with sufficient gold, confirmed the counts immediately after purchase, after reopening the shop, and after a full page reload -- all three checks showed the correct owned counts every time. No bug was found in buySeed(), plant(), or the crow disturbance logic (which only delays growth, never clears a plot's crop) that would explain seeds vanishing.",
+      "defensive_fix_added_anyway": "Added an inventory sanitization pass on every load(): any seed count that isn't a finite number >= 0 (NaN, undefined, negative, etc., from any cause) is reset to 0 instead of silently corrupting the display. This closes off a category of bug even though the specific cause wasn't identified.",
+      "likely_explanation": "Given the pattern across this whole troubleshooting session, this was very possibly still the stale game-systems.js caching bug fixed in v30 -- if this was tested on a build from v29 or earlier (or right after a v30/v31 deploy before the browser picked up the new cache-busted URLs), the purchase UI and the actual data model could have been out of sync in ways that would look exactly like 'bought it, then it vanished.' Since this couldn't be reproduced on the current (already cache-fixed) code, please confirm which exact version was being tested, and if it still happens on v32, the precise sequence (buy -> immediately gone, or buy -> plant -> gone, or buy -> reload -> gone) would help pin down any remaining real bug."
+    }
+  },
+  "verification": {
+    "syntax": "node --check passes on game.js, game-systems.js, and orientation.js.",
+    "fullscreen_lock_attempt": "Confirmed the new fullscreen+lock attempt in lockLandscape() doesn't throw or add any console errors even when it fails (as expected in this headless test environment).",
+    "purchase_persistence_retest": "Re-confirmed pineapple/coconut purchases persist correctly through shop reopen and full page reload on the current code.",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity, the stuck-at-node escape test, the speed-equalization test, and the standard headless-browser playthrough (only the expected harmless local-CORS weather-fetch errors) all still pass."
+  },
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}
