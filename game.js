@@ -7,7 +7,7 @@ const WORLD=KOMSCO.WORLD,PATH=KOMSCO.PathEngine,SYS=KOMSCO.GameSystems;
 const CHARS=SYS.characters,SEEDS=SYS.seeds,CHAR_BASE="./public/assets/characters/";
 const DAY="./public/assets/world/world_day.png",NIGHT="./public/assets/world/world_exact_map.png";
 const DPR=Math.min(devicePixelRatio||1, innerWidth<900?1.35:1.75);
-let W=0,H=0,bgRect={x:0,y:0,w:1,h:1},bgDay,bgNight,last=performance.now(),selected=null,started=false,autoPath=[],currentEdge=null,lastUiUpdate=0,lastPetTick=0,resizeSettleTimer=null;
+let W=0,H=0,bgRect={x:0,y:0,w:1,h:1},bgDay,bgNight,last=performance.now(),selected=null,started=false,autoPath=[],currentEdge=null,lastUiUpdate=0,lastPetTick=0,lastDisturbanceTick=0,resizeSettleTimer=null;
 const images={},keys={},dpad={up:false,down:false,left:false,right:false};let state=SYS.newState();
 
 const isDay=()=>{const h=new Date().getHours();return h>=5&&h<19};
@@ -145,7 +145,8 @@ function draw(){
  ctx.fillStyle=fallback;ctx.fillRect(0,0,W,H);
  const im=activeBg();
  if(im){updateBgRect();ctx.drawImage(im,bgRect.x,bgRect.y,bgRect.w,bgRect.h)}
- drawGuides();drawHotspots();drawCrops();drawPlayer();
+ drawGuides();drawHotspots();drawCrops();drawFarmDecor();drawPlayer();
+ drawWeatherOverlay();
 }
 let routeScreenCache=[];
 function rebuildRouteCache(){
@@ -191,14 +192,145 @@ function drawCrops(){
     const p=w2s(pos[0],pos[1]);
     const growth=Math.min(1,(Date.now()-f.plantedAt)/f.growMs);
     const size=18+growth*12;
+    const stageEmoji=growth>=1?SEEDS[f.seed].emoji:growth<0.34?"🌱":growth<0.7?"🌿":SEEDS[f.seed].emoji;
     ctx.save();
     ctx.font=`${size}px serif`;
     ctx.textAlign="center";
-    ctx.shadowColor="rgba(58,255,126,.75)";
-    ctx.shadowBlur=8;
-    ctx.fillText(SEEDS[f.seed].emoji,p.x,p.y);
+    ctx.shadowColor=growth>=1?"rgba(255,224,102,.9)":"rgba(58,255,126,.75)";
+    ctx.shadowBlur=growth>=1?12:8;
+    if(growth<1&&growth>=0.7)ctx.globalAlpha=0.75; // growing-but-not-ready phase reuses the final emoji at reduced opacity + smaller size, so it visibly differs from the fully-ready state
+    ctx.fillText(stageEmoji,p.x,p.y);
     ctx.restore();
+    if(growth>=1){
+      ctx.save();
+      ctx.font="12px serif";
+      ctx.textAlign="center";
+      ctx.fillText("✨",p.x+size*0.55,p.y-size*0.55);
+      ctx.restore();
+    }
   });
+}
+
+function drawFarmDecor(){
+ const plots=WORLD.farmPlots||[];
+ if(!plots.length)return;
+ const xs=plots.map(p=>p[0]),ys=plots.map(p=>p[1]);
+ const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+ const cx=(minX+maxX)/2;
+ // 허수아비 영웅: 밭 위쪽 가장자리에 배치 (표준 유니코드에 허수아비 이모지가 없어 농부 이모지로 대체 표현)
+ if(state.upgrades.scarecrow){
+   const p=w2s(cx,minY-4.2);
+   ctx.save();ctx.font="26px serif";ctx.textAlign="center";ctx.shadowColor="rgba(255,214,102,.8)";ctx.shadowBlur=10;ctx.fillText("🧑‍🌾",p.x,p.y);ctx.restore();
+ }
+ // 수확도우미 댕댕이: 밭 아래쪽 가장자리에 배치, 살짝 좌우로 걸어다니는 애니메이션
+ if(state.upgrades.pet){
+   const wobble=Math.sin(Date.now()/900)*2.4;
+   const p=w2s(cx+wobble,maxY+4.2);
+   ctx.save();ctx.font="24px serif";ctx.textAlign="center";ctx.fillText("🐕",p.x,p.y);ctx.restore();
+ }
+ // 방해요소: 성장 중인 작물 위에 주기적으로 까마귀가 나타남 (허수아비 보유 시 즉시 쫓겨남)
+ const dist=state.farmDisturbance;
+ if(dist&&dist.cellIdx>=0&&Date.now()<dist.expiresAt&&plots[dist.cellIdx]){
+   const pos=plots[dist.cellIdx];
+   const bob=Math.sin(Date.now()/200)*3;
+   const p=w2s(pos[0],pos[1]-4);
+   ctx.save();ctx.font="20px serif";ctx.textAlign="center";ctx.fillText("🐦‍⬛",p.x,p.y+bob);ctx.restore();
+ }
+}
+function farmDisturbanceTick(){
+ const dist=state.farmDisturbance;
+ // 활성 방해요소가 만료되면 정산: 허수아비가 없으면 해당 밭의 성장을 살짝 지연시킴
+ if(dist&&dist.cellIdx>=0&&Date.now()>=dist.expiresAt){
+   const f=state.farm[dist.cellIdx];
+   if(f&&f.seed&&!state.upgrades.scarecrow){
+     const remaining=f.growMs-(Date.now()-f.plantedAt);
+     if(remaining>0){f.plantedAt+=Math.round(f.growMs*0.12);toast("🐦‍⬛ 까마귀가 작물을 건드려 성장이 조금 지연됐어요!")}
+   }else if(f&&f.seed&&state.upgrades.scarecrow){
+     toast("🧑‍🌾 허수아비가 까마귀를 쫓아냈어요!");
+   }
+   state.farmDisturbance={cellIdx:-1,expiresAt:0};save();
+   return;
+ }
+ if(dist&&dist.cellIdx>=0)return; // 이미 진행 중
+ if(Math.random()>0.35)return; // 매 틱마다 35% 확률로만 등장 시도
+ const candidates=state.farm.map((f,i)=>f.seed&&(Date.now()-f.plantedAt)<f.growMs?i:-1).filter(i=>i>=0);
+ if(!candidates.length)return;
+ const idx=candidates[Math.floor(Math.random()*candidates.length)];
+ state.farmDisturbance={cellIdx:idx,expiresAt:Date.now()+5000};
+}
+
+/* ===================== 실시간 날씨 기반 배경 환경 (맑음/흐림/비/눈) =====================
+   Open-Meteo(무료, API 키 불필요)에서 현재 날씨를 가져와 캔버스 위에 오버레이로 표현합니다.
+   위치 권한이 없거나 네트워크가 막혀도 항상 "맑음"으로 안전하게 대체됩니다. */
+let weatherKind="clear",weatherParticles=[];
+function weatherCodeToKind(code){
+ if(code==null)return"clear";
+ if(code>=95)return"rain"; // 뇌우도 비 연출로 통합
+ if(code>=71&&code<=77)return"snow";
+ if(code>=85&&code<=86)return"snow";
+ if(code>=51&&code<=67)return"rain";
+ if(code>=80&&code<=82)return"rain";
+ if(code>=45&&code<=48)return"cloudy"; // 안개
+ if(code>=1&&code<=3)return"cloudy";
+ return"clear";
+}
+function initWeatherParticles(kind){
+ weatherParticles=[];
+ if(kind==="rain"){
+   for(let i=0;i<70;i++)weatherParticles.push({x:Math.random()*W,y:Math.random()*H,len:14+Math.random()*10,speed:9+Math.random()*5});
+ }else if(kind==="snow"){
+   for(let i=0;i<50;i++)weatherParticles.push({x:Math.random()*W,y:Math.random()*H,r:1.5+Math.random()*2.2,speed:0.8+Math.random()*1.2,drift:Math.random()*2-1});
+ }
+}
+function drawWeatherOverlay(){
+ if(weatherKind==="clear")return;
+ ctx.save();
+ if(weatherKind==="cloudy"){
+   ctx.fillStyle="rgba(60,70,85,.22)";ctx.fillRect(0,0,W,H);
+ }else if(weatherKind==="rain"){
+   ctx.fillStyle="rgba(30,40,60,.28)";ctx.fillRect(0,0,W,H);
+   ctx.strokeStyle="rgba(200,225,255,.55)";ctx.lineWidth=1.4;
+   weatherParticles.forEach(p=>{
+     ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x-4,p.y+p.len);ctx.stroke();
+     p.y+=p.speed;p.x-=p.speed*0.35;
+     if(p.y>H){p.y=-p.len;p.x=Math.random()*W}
+     if(p.x<0)p.x=W;
+   });
+ }else if(weatherKind==="snow"){
+   ctx.fillStyle="rgba(210,225,245,.10)";ctx.fillRect(0,0,W,H);
+   ctx.fillStyle="rgba(255,255,255,.9)";
+   weatherParticles.forEach(p=>{
+     ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();
+     p.y+=p.speed;p.x+=p.drift*0.4;
+     if(p.y>H){p.y=-4;p.x=Math.random()*W}
+     if(p.x<0)p.x=W;if(p.x>W)p.x=0;
+   });
+ }
+ ctx.restore();
+}
+function setWeather(kind){
+ if(kind===weatherKind)return;
+ weatherKind=kind;
+ initWeatherParticles(kind);
+}
+async function fetchWeather(){
+ try{
+   const pos=await new Promise((resolve)=>{
+     if(!navigator.geolocation){resolve(null);return}
+     navigator.geolocation.getCurrentPosition(
+       p=>resolve(p),
+       ()=>resolve(null),
+       {timeout:4000,maximumAge:600000}
+     );
+   });
+   const lat=pos?pos.coords.latitude:37.5665,lon=pos?pos.coords.longitude:126.9780; // 위치 정보가 없으면 서울 기준
+   const res=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=weather_code`);
+   if(!res.ok)throw new Error("weather fetch failed");
+   const data=await res.json();
+   setWeather(weatherCodeToKind(data?.current?.weather_code));
+ }catch{
+   setWeather("clear"); // 오프라인/권한거부/차단 등 어떤 이유로든 실패하면 항상 안전하게 맑음으로
+ }
 }
 
 function isMoving(){
@@ -310,6 +442,10 @@ function update(dt){
     petAutoHarvestTick();
     lastPetTick=now;
   }
+  if(now-lastDisturbanceTick>4000){
+    farmDisturbanceTick();
+    lastDisturbanceTick=now;
+  }
 }
 
 function getNear(){
@@ -348,8 +484,8 @@ function openMission(h,pool){
  const idx=state.missionIndex[h.node]%pool.length;
  const m=pool[idx];
  let html=`<h2>📋 ${h.label} · 구매 미션</h2><p>${m.title}</p><p style="opacity:.75;font-size:13px;">${m.spec}</p><div class="shop-grid">`;
- m.options.forEach((o,i)=>{html+=`<article class="item"><p>${o.text}</p><p><b>${o.price.toLocaleString()}원</b></p><button type="button" data-opt="${i}">이 업체 선택</button></article>`});
- html+=`</div><button type="button" id="ai-advisor-btn" style="margin-top:10px;">🤖 AI 조달 자문관에게 물어보기</button><div id="ai-hint" style="display:none;margin-top:8px;padding:10px;background:rgba(0,0,0,.3);border-radius:10px;font-size:13px;"></div>`;
+ m.options.forEach((o,i)=>{html+=`<article class="item mission-opt"><p class="mission-opt-text">${o.text}</p><p class="mission-opt-price">${o.price.toLocaleString()}원</p><button type="button" data-opt="${i}">이 업체 선택</button></article>`});
+ html+=`</div><button type="button" id="ai-advisor-btn" class="ai-advisor-btn">🤖 AI 조달 자문관에게 물어보기</button><div id="ai-hint" class="ai-hint-box" style="display:none;"></div>`;
  openModal(html);
  document.querySelectorAll("[data-opt]").forEach(b=>b.addEventListener("click",()=>resolveMission(h,pool,idx,+b.dataset.opt)));
  document.getElementById("ai-advisor-btn").addEventListener("click",()=>showAiHint(m));
@@ -379,10 +515,11 @@ function showAiHint(m){
  box.innerHTML=`<b>🤖 AI 조달 자문관</b><br>${tip}`;
 }
 function openShop(){let html="<h2>🌱 씨앗상점</h2><div class='shop-grid'>";for(const[id,s]of Object.entries(SEEDS))html+=`<article class="item shop-item"><h3>${s.emoji} ${s.name}</h3><p><b>${s.price}G</b></p><button type="button" data-buy="${id}">구매</button></article>`;html+="</div><h2>🛠️ 농장 도구</h2><div class='shop-grid'>";for(const[id,u]of Object.entries(SYS.upgrades)){const owned=state.upgrades[id];html+=`<article class="item shop-item"><h3>${u.icon} ${u.name}</h3><p>${u.desc}</p><p><b>${owned?"보유 중":u.cost+"G"}</b></p><button type="button" data-upgrade="${id}" ${owned?"disabled":""}>${owned?"구매완료":"구매"}</button></article>`}html+="</div>";openModal(html);document.querySelectorAll("[data-buy]").forEach(b=>b.addEventListener("click",()=>buySeed(b.dataset.buy)));document.querySelectorAll("[data-upgrade]").forEach(b=>b.addEventListener("click",()=>buyUpgrade(b.dataset.upgrade)))}
-function buyUpgrade(id){const u=SYS.upgrades[id];if(state.upgrades[id]){toast("이미 보유한 도구입니다.");return}if(state.gold<u.cost){toast("골드가 부족합니다.");return}state.gold-=u.cost;state.upgrades[id]=true;save();toast(`${u.icon} ${u.name} 구매 완료!`);openShop()}
-function buySeed(id){const s=SEEDS[id];if(state.gold<s.price){toast("골드가 부족합니다.");return}state.gold-=s.price;state.inventory[id]++;state.seeds++;state.quests[1]=true;save();openShop()}
-function openFarm(){let html="<h2>🌿 주말농장</h2><p>각 밭을 선택해 씨앗을 심고 성장 후 수확하세요.</p><div class='farm-grid'>";state.farm.forEach((f,i)=>{if(!f.seed)html+=`<article class=item><h3>밭 ${i+1}</h3><button data-plot="${i}">씨앗 심기</button></article>`;else{const left=Math.max(0,f.growMs-(Date.now()-f.plantedAt));html+=`<article class=item><h3>${SEEDS[f.seed].emoji} 밭 ${i+1}</h3><p>${left?Math.ceil(left/1000)+"초":"수확 가능"}</p><button data-plot="${i}">${left?"확인":"수확"}</button></article>`}});html+="</div>";openModal(html);document.querySelectorAll("[data-plot]").forEach(b=>b.addEventListener("click",()=>usePlot(+b.dataset.plot)))}
-function usePlot(i){const f=state.farm[i];if(!f.seed){const available=Object.keys(SEEDS).filter(id=>state.inventory[id]>0);if(!available.length){toast("먼저 씨앗을 구매하세요.");return}let html="<h2>심을 씨앗 선택</h2><div class='shop-grid'>";available.forEach(id=>html+=`<article class=item><h3>${SEEDS[id].emoji} ${SEEDS[id].name}</h3><button data-plant="${id}">심기</button></article>`);html+="</div>";openModal(html);document.querySelectorAll("[data-plant]").forEach(b=>b.addEventListener("click",()=>plant(i,b.dataset.plant)));return}if(Date.now()-f.plantedAt<f.growMs){toast("아직 성장 중입니다.");return}harvestPlot(i);openFarm()}
+function buyUpgrade(id){const u=SYS.upgrades[id];if(state.upgrades[id]){toast("이미 보유한 도구입니다.");return}if(state.gold<u.cost){toast("골드가 부족합니다.");return}state.gold-=u.cost;state.upgrades[id]=true;save();toast(`${u.icon} ${u.name} 구매 완료!`);flashGold();openShop()}
+function buySeed(id){const s=SEEDS[id];if(state.gold<s.price){toast("골드가 부족합니다.");return}state.gold-=s.price;state.inventory[id]++;state.seeds++;state.quests[1]=true;save();toast(`${s.emoji} ${s.name} 구매완료! (보유 ${state.inventory[id]}개, 잔액 ${state.gold.toLocaleString()}G)`);flashGold();openShop()}
+function flashGold(){const el=ui("goldText");if(!el)return;el.classList.remove("flash");void el.offsetWidth;el.classList.add("flash")}
+function openFarm(){let html="<h2>🌿 주말농장</h2><p>각 밭을 선택해 씨앗을 심고 성장 후 수확하세요.</p><div class='farm-grid'>";state.farm.forEach((f,i)=>{if(!f.seed)html+=`<article class=item><h3>밭 ${i+1}</h3><button data-plot="${i}">씨앗 심기</button></article>`;else{const left=Math.max(0,f.growMs-(Date.now()-f.plantedAt));const growth=Math.min(1,(Date.now()-f.plantedAt)/f.growMs);const stageEmoji=growth>=1?SEEDS[f.seed].emoji:growth<0.34?"🌱":growth<0.7?"🌿":SEEDS[f.seed].emoji;html+=`<article class=item><h3>${stageEmoji} 밭 ${i+1}</h3><div class="farm-progress"><div class="farm-progress-bar" style="width:${Math.round(growth*100)}%"></div></div><p>${left?Math.ceil(left/1000)+"초":"수확 가능"}</p><button data-plot="${i}">${left?"확인":"수확"}</button></article>`}});html+="</div>";openModal(html);document.querySelectorAll("[data-plot]").forEach(b=>b.addEventListener("click",()=>usePlot(+b.dataset.plot)))}
+function usePlot(i){const f=state.farm[i];if(!f.seed){let html="<h2>심을 씨앗 선택</h2><div class='shop-grid'>";Object.entries(SEEDS).forEach(([id,s])=>{const owned=state.inventory[id]||0;html+=`<article class="item"><h3>${s.emoji} ${s.name}</h3><p style="opacity:.75;font-size:12px;margin:2px 0;">보유 ${owned}개</p><button type="button" data-plant="${id}" ${owned<=0?"disabled":""}>${owned<=0?"미보유":"심기"}</button></article>`});html+="</div>";openModal(html);document.querySelectorAll("[data-plant]:not(:disabled)").forEach(b=>b.addEventListener("click",()=>plant(i,b.dataset.plant)));return}if(Date.now()-f.plantedAt<f.growMs){toast("아직 성장 중입니다.");return}harvestPlot(i);openFarm()}
 function harvestPlot(i){const f=state.farm[i];if(!f.seed)return false;if(Date.now()-f.plantedAt<f.growMs)return false;const s=SEEDS[f.seed];const reward=Math.round(s.reward*(state.upgrades.scarecrow?1.1:1));state.gold+=reward;state.harvest++;state.quests[3]=true;state.farm[i]={seed:null,plantedAt:0,growMs:0};save();return reward}
 function petAutoHarvestTick(){
  if(!state.upgrades.pet)return;
@@ -598,17 +735,23 @@ function claimMail(id){
 function getSharePayload(){
  return{url:location.href,text:"KOMSCO 네온팜 시티에서 함께 도시를 키워요!",title:"KOMSCO 네온팜 시티"};
 }
+// navigator.share()는 기기의 실제 물리적 화면 방향으로 OS 공유창을 띄우는데, 이 게임은
+// 세로로 쥔 폰을 CSS로 가로처럼 보이게 하는 방식이라 OS 공유창은 우리 CSS 회전과 무관하게
+// 항상 실제(세로) 방향으로 나타나 화면이 통째로 뒤집힌 것처럼 보였습니다. OS 공유창을 아예
+// 쓰지 않고, 게임과 같은 회전을 그대로 물려받는 자체 모달로만 공유를 처리하도록 변경.
 async function shareGame(){
  const payload=getSharePayload();
- if(navigator.share){
-   try{await navigator.share(payload);return}catch{return}
- }
- try{
-   await navigator.clipboard.writeText(`${payload.title}\n${payload.text}\n${payload.url}`);
-   toast("공유 링크가 클립보드에 복사되었습니다.");
- }catch{
-   toast(payload.url);
- }
+ let copied=false;
+ try{await navigator.clipboard.writeText(`${payload.title}\n${payload.text}\n${payload.url}`);copied=true}catch{}
+ const html=`<h2>📤 게임 공유하기</h2><p>아래 링크를 복사해서 친구에게 공유해보세요.</p>
+   <div class="share-link-box"><span id="shareLinkText">${payload.url}</span></div>
+   <button type="button" id="shareCopyBtn" class="ai-advisor-btn">${copied?"✅ 링크가 복사되었습니다":"📋 링크 복사하기"}</button>`;
+ openModal(html);
+ const btn=document.getElementById("shareCopyBtn");
+ if(btn)btn.addEventListener("click",async()=>{
+   try{await navigator.clipboard.writeText(`${payload.title}\n${payload.text}\n${payload.url}`);btn.textContent="✅ 링크가 복사되었습니다"}
+   catch{btn.textContent="복사에 실패했습니다. 직접 선택해 복사해주세요."}
+ });
 }
 
 (async()=>{
@@ -629,6 +772,8 @@ async function shareGame(){
    const fallbackChar=Object.values(images).find(Boolean);
    for(const id of Object.keys(CHARS))if(!images[id])images[id]=fallbackChar;
    updateUI();resize();updateNotifBadge();
+   fetchWeather();
+   setInterval(fetchWeather,15*60*1000);
    ui("loading").classList.remove("show");
    ui("characterSelect").classList.add("show");
    requestAnimationFrame(loop);

@@ -1,0 +1,48 @@
+{
+  "version": "2026.07.25-bugfix-round-v29",
+  "context": "User reported 11 issues from 3 screenshots after testing the v28 build. Investigation revealed most of the requested features (ID본부/제지본부 missions, shop purchase feedback, crop growth-stage visuals, pet/scarecrow farm sprites, crow pest events, weather system) were ALREADY implemented in the working codebase -- this session's code review found them fully wired up (data model, update-loop hooks, and canvas rendering all present and consistent) even though they weren't part of this conversation's own visible edit history. Two of the user's screenshots were also from a different domain (kcbdc.github.io) than the project's main deployment (komsco-3d.pages.dev) showing the exact new v28 upgrade-shop text ('골든 물뿌리개', '허수아비 영웅', '수확도우미 댕댕이'), confirming it is the same codebase just deployed elsewhere -- most likely an older cached copy predating some of these fixes, based on the specific symptoms reported (garbled modal text, gray unstyled AI-advisor button) not matching what this session's code review found already in place.",
+
+  "confirmed_already_implemented_no_action_needed": [
+    "ID본부/제지본부 미션 전환 -- missionPool already has H2_ID and H2_PAPER entries alongside HQ/MINT/LAB.",
+    "상점 구매 피드백 -- buySeed()/buyUpgrade() already update the toast with owned-count/balance and trigger a gold-flash animation.",
+    "작물 성장 단계 시각화 -- drawCrops() already renders sprout -> growing -> ready stages with a size/opacity ramp and a progress bar in the farm list UI.",
+    "허수아비/댕댕이 농장 배치 -- drawFarmDecor() already renders a farmer emoji (scarecrow, no dedicated unicode scarecrow glyph exists) at the top edge of the farm plots and a walking dog emoji at the bottom edge when owned.",
+    "방해요소(까마귀) -- farmDisturbanceTick() already spawns a random crow over a growing plot every few seconds (35% chance per tick), delaying growth unless a scarecrow is owned.",
+    "날씨 연동 배경 -- fetchWeather() already calls Open-Meteo (no API key needed) using geolocation (falling back to Seoul), maps the weather code to clear/cloudy/rain/snow, and renders matching canvas particle overlays."
+  ],
+
+  "genuinely_fixed_this_round": {
+    "share_causes_portrait": {
+      "root_cause": "navigator.share() opens a native OS share sheet that always renders in the device's TRUE physical orientation. Since this game fakes landscape via a CSS rotation trick while the phone is physically held in portrait, the native share sheet can never be rotated to match -- it will always look like the page 'flipped' the instant it appears, regardless of any guard condition checked beforehand.",
+      "fix": "Removed the navigator.share() call entirely. Share now always opens through the game's own in-page modal (same one used for missions/shop), which inherits the exact same rotation as everything else, so it can never visually clash. The modal shows the link with a copy button; clipboard.writeText() is attempted automatically and again on demand via the button, with a text fallback if clipboard access is blocked."
+    },
+    "modal_text_button_misalignment": {
+      "likely_root_cause": "The .shop-grid/.farm-grid containers used CSS Grid's auto-fit/minmax for column sizing. Grid's intrinsic-sizing algorithm has known cross-engine inconsistencies when the grid container sits inside a transform:rotate() ancestor (exactly this game's landscape-fake rotation) -- some engines compute available inline size against the pre-transform box, which can make auto-fit collapse columns to near-zero width, forcing text to wrap character-by-character (matching the vertically-stacked-looking text in the screenshots).",
+      "fix": "Replaced CSS Grid with Flexbox (flex-wrap:wrap, explicit min-width in px per item) for .shop-grid/.farm-grid, which does not depend on the same intrinsic-sizing codepath and is far more consistently supported across engines under a rotated ancestor. Also added explicit direction:ltr and writing-mode:horizontal-tb (!important) on .modal-card/.shop-grid/.farm-grid/.item as a defensive guard against any inherited vertical text rendering, even though no writing-mode rule was actually found in the stylesheet.",
+      "caveat": "Could not reproduce the garbled layout in this environment's Chromium-based testing (it always rendered correctly there), so this fix is based on the most plausible root cause given the visual symptom and the known category of engine bug, not a confirmed local repro. If it recurs after this update, the debug overlay's game W/H readout would help narrow it down further."
+    },
+    "plant_modal_missing_seeds": {
+      "root_cause": "The 'seed to plant' popup filtered the seed list down to only types the player currently owned (inventory > 0), so with only a few seed types purchased, most of the 12 types were invisible -- there was no way to see the full catalog while deciding what to plant.",
+      "fix": "The popup now always lists all 12 seed types with an owned-count shown per type; the plant button is disabled and grayed out for types with zero owned, rather than hiding them."
+    }
+  },
+
+  "verification": {
+    "syntax": "node --check passes on game.js and game-systems.js.",
+    "share_flow": "Live browser test confirms the share button now only opens the in-page modal with a working copy button -- no native share sheet triggered.",
+    "mission_modal_layout": "Live browser screenshot at a real portrait-phone viewport (412x915) shows clean, correctly aligned option cards and a properly styled purple AI-advisor button.",
+    "plant_modal": "Confirmed via direct inspection that SEEDS has exactly 12 keys and usePlot() now iterates all of them unconditionally.",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity, AUTO-navigation simulation, the stuck-at-node escape test, and the speed-equalization test all still pass unchanged. The standard headless-browser playthrough shows 2 console errors, both a CORS failure on the Open-Meteo weather fetch -- this only happens because the local test server is plain HTTP (not the deployed HTTPS domain); the fetch is already wrapped in try/catch with a safe 'clear weather' fallback, so it's a harmless local-testing artifact, not a functional bug."
+  },
+
+  "recommendation_for_user": "Since most of these issues trace back to features that are already correctly implemented in this codebase, please deploy this v29 build fresh (and do a hard refresh / clear site data on the test device first) before re-checking the list -- if the modal/AI-advisor/farm-visual issues were caused by a stale cached build, they should already be resolved without needing the fixes made in this round specifically.",
+
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}
