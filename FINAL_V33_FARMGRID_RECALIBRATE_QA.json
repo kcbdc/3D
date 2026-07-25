@@ -1,0 +1,39 @@
+{
+  "version": "2026.07.25-farmgrid-recalibrate-v33",
+  "context": "User sent a clear desktop-view screenshot showing crops clearly rendered off-center from their plot cells (worst for the strawberry/corn/watermelon positions), confirming the textBaseline fix from v32 (which only fixed the vertical text-anchor issue) wasn't the whole story -- the underlying farmPlots coordinate data itself didn't match the actual background art.",
+
+  "root_cause": "farmPlots in world-data.js was a hand-estimated 3x4 grid (likely eyeballed when the world data was first authored) that didn't precisely match the actual tilled-soil positions drawn in the background image (public/assets/world/world_day.png). The drift got progressively worse for lower rows (up to ~2.4% off in y by the last row), which matches the screenshot showing worse misalignment toward the bottom of the farm.",
+
+  "fix_method": "Measured the actual plot grid directly from the background image pixel data instead of estimating again by eye: detected all tilled-soil-brown-colored pixel regions via color thresholding, ran connected-component labeling to isolate individual soil patches, took the well-separated (non-touching) patches' centroids, and clustered them into 3 column positions and 4 row positions. This gives coordinates measured directly from the actual art rather than guessed.",
+
+  "new_coordinates": {
+    "columns_world_pct": [44.7, 49.5, 54.0],
+    "rows_world_pct": [44.8, 49.6, 54.5, 59.8],
+    "previous_columns": [43.3, 49.1, 54.8],
+    "previous_rows": [45.5, 51.1, 56.8, 62.4]
+  },
+
+  "verification": {
+    "method": "For each of the 12 new plot coordinates, sampled an 18px-radius window around the corresponding pixel position in the actual background image and measured what fraction of pixels matched the tilled-soil color range.",
+    "result": "All 12 plots landed at a consistent 61-70% soil-pixel density, essentially identical across every single plot -- strong confirmation that every plot center is now solidly and uniformly positioned within its own soil patch, not partially overlapping a fence/border/neighboring cell."
+  },
+
+  "note_on_v32_fix": "The v32 textBaseline='middle' fix (for vertical text-anchor centering) is still correct and necessary on its own -- it fixes how a sprite is centered ON its coordinate. This v33 fix corrects what that coordinate actually IS. Both together should now produce properly centered crops.",
+
+  "regression_suite_rerun": {
+    "syntax": "pass",
+    "road_graph_integrity": "pass (farmPlots isn't part of the road graph/pathfinding, so this change doesn't affect movement logic)",
+    "stuck_at_node_test": "pass",
+    "speed_equalization_test": "pass",
+    "headless_browser_playthrough": "pass (only the expected harmless local-CORS weather-fetch errors)"
+  },
+
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}
