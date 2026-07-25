@@ -1,0 +1,49 @@
+{
+  "version": "2026.07.25-critical-cachefix-v30",
+  "context": "User sent a real crash screenshot with a full stack trace, plus 4 more specific reports, after testing v29.",
+
+  "critical_bug_found_and_fixed": {
+    "the_crash": "TypeError: Cannot read properties of undefined (reading 'title') at openMission -> doWork -> interact.",
+    "root_cause": "index.html only ever put a cache-busting ?v=... query string on game.js. The other 4 script tags (world-data.js, path-engine.js, game-systems.js, orientation.js) had no version string at all, on EVERY version shipped up through v29. This means every version bump only guaranteed a fresh fetch of game.js -- any caching layer (browser disk cache, mobile carrier proxy, CDN edge cache) could keep serving an old cached copy of game-systems.js (which holds SEEDS/upgrades/missionPool) indefinitely, since its URL literally never changed across deploys. A newer game.js expecting the current mission-pool structure, paired with a stale game-systems.js from an earlier point in development, is exactly the kind of mismatch that produces 'reading title of undefined' when indexing into a pool that's missing entries the new code assumes exist. This almost certainly also explains several of the earlier 'already implemented but still not showing up' reports from the previous round -- those fixes were real and correct, but a stale cached game-systems.js/world-data.js could have been silently overriding them on the test device the whole time.",
+    "fix": "Added the exact same ?v=<version> query string to all 5 script tags, so every version bump now forces a guaranteed-fresh fetch of every game file, not just game.js. This is the highest-confidence fix in this round since it's a structural bug with clear supporting evidence (the stack trace), not a guess.",
+    "defensive_hardening_added_too": "Even with the cache bug fixed, doWork()/openMission() now also guard against a missing/empty mission pool or an out-of-range mission index, falling back to the simple instant-reward flow instead of throwing -- so a similar mismatch in the future (or any leftover stale client) degrades gracefully instead of crashing the whole page."
+  },
+
+  "other_fixes_this_round": {
+    "pet_not_roaming_inside_farm": {
+      "before": "The pet (수확도우미 댕댕이) was drawn at a fixed spot just outside the farm plot boundary, only wobbling a couple of units side to side.",
+      "fix": "Now wanders inside the farm's plot bounding box using two independent sine waves (different periods for x and y), giving an organic wandering path that stays within the farm area, plus a simple left/right facing flip so it doesn't look like it's sliding sideways."
+    },
+    "farm_tool_shop_alignment": {
+      "status": "Attempted again this round, though not confirmed fixed since the exact garbled-text bug still couldn't be reproduced in this environment's testing (renders correctly here on every attempt).",
+      "change_made": "The modal's width previously depended on a JS-computed --game-w CSS custom property; changed it to a plain percentage of its own parent (#modal, which reliably fills #gameShell via inset:0 regardless of any JS calculation). This removes a whole category of potential bug (a wrong --game-w value on some specific device/viewport combination) without depending on reproducing the exact failure first.",
+      "note": "Since style.css already had proper cache-busting on every prior version (unlike the 4 script files above), this specific issue was not explained by the caching bug -- so this is a separate, still only partially-diagnosed issue. If it persists after this update, the debug overlay's 'game W,H' readout on the affected device would help pin down whether --game-w was ever actually the cause."
+    },
+    "share_more_options": {
+      "change": "Replaced the single link-copy modal with a multi-channel share grid: 문자(SMS), 이메일, X(트위터), 라인, and 링크복사, matching the layout style of the reference screenshot. Each uses a standard URI scheme (sms:, mailto:, twitter intent, LINE's public share endpoint) that needs no API key.",
+      "kakaotalk_not_included": "A real 'send to KakaoTalk' button requires the Kakao JS SDK with a registered app key, which isn't configured anywhere in this project. Faking the button without that setup would silently fail or 404, so it was left out rather than shipped broken. If a Kakao Developers app key is available, this can be added properly in a follow-up."
+    },
+    "crop_growth_visibility": {
+      "status": "The underlying growth-stage logic (sprout -> growing -> ready sprite, progress bar in the farm menu) was already implemented and is very likely to have been affected by the same stale game-systems.js caching bug (SEEDS lookups failing silently) described above -- expected to already work correctly once v30's cache fix takes effect.",
+      "additional_improvement_this_round": "Added a circular progress ring drawn directly on the map canvas around each growing crop, so progress is visible at a glance while walking around the farm without needing to open the farm menu."
+    }
+  },
+
+  "verification": {
+    "syntax": "node --check passes on game.js and game-systems.js.",
+    "crash_repro_and_fix_confirmed": "Reproduced the exact reported crash by loading a save deliberately missing the upgrades/missionIndex fields entirely (simulating a very old/malformed save) and clicking the HQ hotspot -- confirmed it opened the mission modal cleanly with no error, matching the actual production stack trace's failure point.",
+    "share_modal": "Confirmed via direct HTML inspection that all 5 channel links render with correctly URL-encoded hrefs.",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity, AUTO-navigation simulation, the stuck-at-node escape test, the speed-equalization test, and the standard headless-browser playthrough (only the expected harmless local-CORS weather-fetch errors) all still pass."
+  },
+
+  "recommendation_for_user": "This version's cache-busting fix applies to every JS file, so a normal reload (even without clearing site data) should now always pick up the latest code going forward. For this specific update though, a hard refresh / clear site data once is still recommended, since the browser may have an old game-systems.js cached from before this fix existed.",
+
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}

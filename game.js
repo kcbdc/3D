@@ -193,6 +193,17 @@ function drawCrops(){
     const growth=Math.min(1,(Date.now()-f.plantedAt)/f.growMs);
     const size=18+growth*12;
     const stageEmoji=growth>=1?SEEDS[f.seed].emoji:growth<0.34?"🌱":growth<0.7?"🌿":SEEDS[f.seed].emoji;
+    // 성장 진행률 링: 모달을 열지 않아도 지도 위에서 바로 진행 상황이 보이도록
+    if(growth<1){
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(p.x,p.y+size*0.15,size*0.85,-Math.PI/2,-Math.PI/2+growth*Math.PI*2);
+      ctx.strokeStyle="rgba(120,255,160,.9)";
+      ctx.lineWidth=2.4;
+      ctx.lineCap="round";
+      ctx.stroke();
+      ctx.restore();
+    }
     ctx.save();
     ctx.font=`${size}px serif`;
     ctx.textAlign="center";
@@ -222,11 +233,19 @@ function drawFarmDecor(){
    const p=w2s(cx,minY-4.2);
    ctx.save();ctx.font="26px serif";ctx.textAlign="center";ctx.shadowColor="rgba(255,214,102,.8)";ctx.shadowBlur=10;ctx.fillText("🧑‍🌾",p.x,p.y);ctx.restore();
  }
- // 수확도우미 댕댕이: 밭 아래쪽 가장자리에 배치, 살짝 좌우로 걸어다니는 애니메이션
+ // 수확도우미 댕댕이: 밭 '안쪽'을 자유롭게 돌아다니도록 (두 개의 다른 주기 sine파로 밭 경계
+ // 안에서 자연스럽게 배회하는 경로를 만듦 -- 기존에는 밭 바깥 고정된 자리에서 살짝만 흔들렸음)
  if(state.upgrades.pet){
-   const wobble=Math.sin(Date.now()/900)*2.4;
-   const p=w2s(cx+wobble,maxY+4.2);
-   ctx.save();ctx.font="24px serif";ctx.textAlign="center";ctx.fillText("🐕",p.x,p.y);ctx.restore();
+   const t=Date.now()/1000;
+   const marginX=(maxX-minX)*0.12,marginY=(maxY-minY)*0.12;
+   const px=cx+Math.sin(t/2.2)*((maxX-minX)/2-marginX);
+   const py=(minY+maxY)/2+Math.sin(t/3.1+1.3)*((maxY-minY)/2-marginY);
+   const facingLeft=Math.cos(t/2.2)<0;
+   const p=w2s(px,py);
+   ctx.save();ctx.font="22px serif";ctx.textAlign="center";
+   if(facingLeft){ctx.translate(p.x,p.y);ctx.scale(-1,1);ctx.fillText("🐕",0,0)}
+   else ctx.fillText("🐕",p.x,p.y);
+   ctx.restore();
  }
  // 방해요소: 성장 중인 작물 위에 주기적으로 까마귀가 나타남 (허수아비 보유 시 즉시 쫓겨남)
  const dist=state.farmDisturbance;
@@ -477,12 +496,16 @@ function startAuto(h){
 function interact(){const h=getNear();if(!h){toast("상호작용 원 안으로 이동하세요.");return}if(h.type==="work")doWork(h);if(h.type==="shop")openShop();if(h.type==="farm")openFarm()}
 function doWork(h){
  const pool=SYS.missionPool[h.node];
- if(pool){openMission(h,pool);return}
+ if(pool&&pool.length){openMission(h,pool);return}
  const reward=Math.round(h.reward*CHARS[state.character].reward);state.gold+=reward;recalcLevel();state.quests[0]=true;save();toast(`${h.label} 업무 완료 · +${reward}G`)
 }
 function openMission(h,pool){
- const idx=state.missionIndex[h.node]%pool.length;
+ const rawIdx=state.missionIndex[h.node];
+ const idx=(Number.isFinite(rawIdx)?rawIdx:0)%pool.length;
  const m=pool[idx];
+ if(!m){ // defensive fallback -- should never happen now, but never crash the game over a bad mission index
+   const reward=Math.round(h.reward*CHARS[state.character].reward);state.gold+=reward;recalcLevel();state.quests[0]=true;save();toast(`${h.label} 업무 완료 · +${reward}G`);return;
+ }
  let html=`<h2>📋 ${h.label} · 구매 미션</h2><p>${m.title}</p><p style="opacity:.75;font-size:13px;">${m.spec}</p><div class="shop-grid">`;
  m.options.forEach((o,i)=>{html+=`<article class="item mission-opt"><p class="mission-opt-text">${o.text}</p><p class="mission-opt-price">${o.price.toLocaleString()}원</p><button type="button" data-opt="${i}">이 업체 선택</button></article>`});
  html+=`</div><button type="button" id="ai-advisor-btn" class="ai-advisor-btn">🤖 AI 조달 자문관에게 물어보기</button><div id="ai-hint" class="ai-hint-box" style="display:none;"></div>`;
@@ -739,18 +762,27 @@ function getSharePayload(){
 // 세로로 쥔 폰을 CSS로 가로처럼 보이게 하는 방식이라 OS 공유창은 우리 CSS 회전과 무관하게
 // 항상 실제(세로) 방향으로 나타나 화면이 통째로 뒤집힌 것처럼 보였습니다. OS 공유창을 아예
 // 쓰지 않고, 게임과 같은 회전을 그대로 물려받는 자체 모달로만 공유를 처리하도록 변경.
+// 카카오톡 공유는 Kakao JS SDK + 앱 키 등록이 필요한데 이 프로젝트엔 연동되어 있지 않아
+// (가짜로 흉내내면 조용히 실패하거나 404가 나므로) 목록에서 제외했습니다.
 async function shareGame(){
  const payload=getSharePayload();
- let copied=false;
- try{await navigator.clipboard.writeText(`${payload.title}\n${payload.text}\n${payload.url}`);copied=true}catch{}
- const html=`<h2>📤 게임 공유하기</h2><p>아래 링크를 복사해서 친구에게 공유해보세요.</p>
-   <div class="share-link-box"><span id="shareLinkText">${payload.url}</span></div>
-   <button type="button" id="shareCopyBtn" class="ai-advisor-btn">${copied?"✅ 링크가 복사되었습니다":"📋 링크 복사하기"}</button>`;
+ const msg=`${payload.title}\n${payload.text}\n${payload.url}`;
+ const enc=encodeURIComponent;
+ const channels=[
+   {icon:"💬",label:"문자",href:`sms:?body=${enc(msg)}`},
+   {icon:"✉️",label:"이메일",href:`mailto:?subject=${enc(payload.title)}&body=${enc(msg)}`},
+   {icon:"🐦",label:"X(트위터)",href:`https://twitter.com/intent/tweet?text=${enc(payload.text)}&url=${enc(payload.url)}`},
+   {icon:"🟢",label:"라인",href:`https://social-plugins.line.me/lineit/share?url=${enc(payload.url)}&text=${enc(payload.text)}`}
+ ];
+ let html=`<h2>📤 게임 친구 공유하기</h2><p>친구에게 KOMSCO 네온팜 시티 링크를 공유해보세요.</p><div class="share-grid">`;
+ channels.forEach((c,i)=>html+=`<a class="share-chip" href="${c.href}" target="_blank" rel="noopener">${c.icon} ${c.label}</a>`);
+ html+=`<button type="button" id="shareCopyBtn" class="share-chip share-chip-copy">🔗 링크복사</button></div>
+   <div class="share-link-box"><span id="shareLinkText">${payload.url}</span></div>`;
  openModal(html);
  const btn=document.getElementById("shareCopyBtn");
  if(btn)btn.addEventListener("click",async()=>{
-   try{await navigator.clipboard.writeText(`${payload.title}\n${payload.text}\n${payload.url}`);btn.textContent="✅ 링크가 복사되었습니다"}
-   catch{btn.textContent="복사에 실패했습니다. 직접 선택해 복사해주세요."}
+   try{await navigator.clipboard.writeText(msg);btn.textContent="✅ 복사 완료"}
+   catch{btn.textContent="복사 실패, 직접 선택해 복사해주세요"}
  });
 }
 
