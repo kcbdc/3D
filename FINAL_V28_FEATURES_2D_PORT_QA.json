@@ -1,0 +1,45 @@
+{
+  "version": "2026.07.25-features-2d-port-v28",
+  "context": "User uploaded a separate, more elaborate single-file 2D game (komsco_procurement_game_v30-1.html, Phaser-based 'Jofams Garden') and asked to port several of its features into this NeonCity game: 12 seed/crop types and growth mechanics, farm tools/upgrades, a share feature, notifications, a mailbox, HQ/headquarters procurement missions, and an AI advisor feature. The earlier community/DM/chat/social-login request from a prior message turned out to belong to this same 2D source file (it already has that system built in) -- that part was explicitly NOT ported, since it requires real backend infrastructure (WebSocket-ish polling, a users/DM database) that doesn't exist in this project and would be a large separate undertaking; the user was told this and did not ask for it again in this message.",
+
+  "source_investigation": {
+    "seeds": "Found cropsData: exactly 12 crops (감자 through 파인애플) with id/name/emoji/seedPrice/reward/growthTime.",
+    "upgrades": "Found upgradesData: 3 tools -- golden watering can (-20% growth time), scarecrow hero (prevents crow raids), harvest-helper dog (auto-harvests ready crops).",
+    "share": "Found getSharePayload()/openSharePopup(): builds a {url, text, title} payload for a share UI.",
+    "notifications_mailbox": "Found pushNotification()/grantMail()/updateNotifBadge()/renderAlertPane()/renderMailPane(): entirely localStorage-based, no backend required for the non-DM parts.",
+    "hq_missions": "Found MISSION_POOL and RULE_LIST: headquarters-style missions present 3 vendor options with prices against a stated budget cap; the player picks one, and correct/incorrect is judged against budget and against a 12-item government-procurement-rule list (mapped to which vendor holds the right certification).",
+    "ai_advisor": "Found the AI 조달 자문관 button and its offline fallback (offlineHint()): when there is no backend AI endpoint reachable, it gives a rule-based hint tied to the mission's associated procurement rule, or a generic tip otherwise."
+  },
+
+  "what_was_ported": {
+    "seeds_12_types": "game-systems.js SEEDS expanded from 3 to all 12 crops. Growth times converted from the source's abstract 'growthTime' units to milliseconds using a fixed ratio (11,250ms per unit) chosen so the existing 당근 (carrot) baseline (45,000ms at growthTime=4) stayed unchanged -- so no existing balance/pacing was disrupted, only new crops were added around it.",
+    "farm_upgrades": "3 upgrades added to game-systems.js and wired into the actual farm logic: water (-20% grow time, applied in plant()), pet (auto-harvest every 3s via a new petAutoHarvestTick(), hooked into the main loop on its own 3-second throttle so it isn't checked every frame), and scarecrow -- adapted to +10% harvest reward instead of pest-prevention, since this game has no crow/pest mechanic to defend against; this substitution is called out explicitly in the upgrade's in-game description so it isn't misleading.",
+    "share_feature": "shareGame() added: uses navigator.share() when available (mobile), falls back to clipboard copy, falls back again to just showing the link in a toast if clipboard access fails. Wired to a new 📤 button in the top icon bar.",
+    "notifications_mailbox": "Ported as a client-only (localStorage) system, matching the source's own non-DM implementation exactly -- no backend changes needed. New 🔔 button with an unread/unclaimed count badge opens a combined alert + mailbox panel. Level-ups now grant a mail reward via a new centralized recalcLevel() function (previously the level formula was duplicated inline in two places; centralizing it was also necessary to detect the level-up transition for the mail trigger).",
+    "hq_missions": "doWork() now checks for a mission pool entry keyed by the hotspot's node id (HQ/MINT/LAB); if present, it opens a real 3-option procurement mission (openMission/resolveMission) instead of the old instant-reward tap. Mission content adapted from the source's exact procurement-rule style (budget caps, certification reasoning) but trimmed to 2 missions per hotspot (cycling) and 6 procurement rules instead of the source's 5-per-hotspot/12-rule scale, to keep this addition proportionate. Hotspots without a mission pool entry (ID본부, 제지본부) keep the original instant-reward behavior unchanged.",
+    "ai_advisor": "Added directly inside the mission modal as a 🤖 button. Since this project has no backend AI endpoint (unlike the source, which tries Cloudflare Workers AI first), this always uses the same rule-based offline hint logic the source falls back to -- tied to the mission's associated procurement rule when there is one."
+  },
+
+  "migration_safety": {
+    "issue_found_and_fixed": "load() previously used a single shallow Object.assign(newDefaultState, savedState), which works fine for flat fields but would let an old save's smaller nested objects (e.g. a pre-v28 save's 3-key inventory) wholesale-replace the new 12-key default, silently dropping the 9 new seed types for any returning player. Fixed by deep-merging inventory/upgrades/missionIndex specifically after the shallow assign, so existing saves gain the new fields instead of losing data.",
+    "verified": "Confirmed via direct testing that a save with the old 3-seed inventory format still loads correctly with all 12 seed keys present."
+  },
+
+  "verification": {
+    "syntax": "node --check passes on game.js and game-systems.js.",
+    "shop_ui": "Live browser test confirms the shop modal renders exactly 12 seed purchase buttons and 3 upgrade purchase buttons under a new '농장 도구' section; purchasing an upgrade correctly deducts gold and marks it owned.",
+    "mission_flow": "Live browser test walked the character to the HQ hotspot, opened the mission (3 options with prices rendered correctly), clicked the AI advisor button (correct rule-based hint text appeared), then selected the correct vendor option and confirmed the success toast and gold reward.",
+    "mailbox_flow": "Live browser test injected a test mail entry, confirmed the notification badge showed the correct unread count, opened the panel, and confirmed claiming the mail correctly credited gold and marked it as claimed.",
+    "console_errors": "0 console errors/warnings/pageerrors across all of the above browser tests.",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity, AUTO-navigation simulation, the stuck-at-node escape test, the speed-equalization test, and the full standard headless-browser playthrough all still pass unchanged."
+  },
+
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}

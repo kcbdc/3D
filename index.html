@@ -9,7 +9,7 @@
   <meta name="screen-orientation" content="landscape">
   <title>KOMSCO Neon Farm City</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=junction-radius-fix-v27">
+  <link rel="stylesheet" href="./style.css?v=features-2d-port-v28">
 </head>
 <body>
 <div id="orientationNotice">
@@ -52,6 +52,8 @@
     <nav class="top-icons">
       <button id="rankingBtn" type="button">🏆<span>랭킹</span></button>
       <button id="codexBtn" type="button">📖<span>도감</span></button>
+      <button id="notifBtn" type="button" aria-label="알림 및 우편함">🔔<span>알림</span><b id="notifBadge" class="notif-badge">0</b></button>
+      <button id="shareBtn" type="button" aria-label="게임 공유하기">📤<span>공유</span></button>
       <button id="settingsBtn" type="button">⚙️<span>설정</span></button>
       <button id="menuBtn" type="button" aria-label="보조 메뉴">☰<span>메뉴</span></button>
     </nav>
@@ -72,7 +74,6 @@
     </section>
     <section>
       <small>씨앗상점</small>
-      <div class="seed-row"><span>🥕 60</span><span>🍅 90</span><span>🍓 130</span></div>
       <button id="shopShortcut" type="button">상점 바로가기</button>
     </section>
     <section>
@@ -103,6 +104,6 @@
 <script defer src="./src/engine/path-engine.js"></script>
 <script defer src="./src/game/game-systems.js"></script>
 <script defer src="./src/ui/orientation.js"></script>
-<script defer src="./game.js?v=junction-radius-fix-v27"></script>
+<script defer src="./game.js?v=features-2d-port-v28"></script>
 </body>
 </html>
