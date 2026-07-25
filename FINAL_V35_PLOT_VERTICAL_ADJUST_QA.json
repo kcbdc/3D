@@ -1,0 +1,30 @@
+{
+  "version": "2026.07.25-plot-vertical-adjust-v35",
+  "context": "User confirmed the crop's horizontal centering is correct, but it's sitting at the bottom-center of each plot cell rather than the true center. Also asked to move the scarecrow higher.",
+
+  "likely_cause": "The v33 coordinates were derived by measuring the centroid of soil-brown-colored pixels in the background art. In this isometric/2.5D art style, a raised plot bed's front/lower edge (closer to the 'camera') likely reads more strongly as solid soil-brown than its back/upper edge (which may be partially occluded by the bed's raised border or rendered thinner due to the perspective), which would systematically bias a color-based centroid measurement downward relative to what a human perceives as the cell's true center -- consistent with the report being about ALL plots uniformly, not a one-off case.",
+
+  "fix": {
+    "farm_plots": "Shifted every row's y-coordinate up by 1.8 (world-%): 43.0 / 47.8 / 52.7 / 58.0, replacing the previous 44.8 / 49.6 / 54.5 / 59.8. Columns (x) were left unchanged since only the vertical position was reported as off.",
+    "scarecrow": "Increased its offset above the farm's top row from -4.2 to -4.8 (world-units), which combined with the farm plots themselves moving up means its absolute position rises from y=40.6 to y=38.2 -- a clearly noticeable upward shift -- while keeping roughly 2 world-units of clearance from the road line above the farm (y=36.2) so it doesn't end up standing on/overlapping the road."
+  },
+
+  "honesty_note": "This adjustment is based directly on the user's reported direction (too low, move up) rather than a fresh independent pixel measurement, since this session could not render/view image content to re-verify visually. If this still isn't quite centered, the next round can fine-tune further from this new baseline with more specific feedback (e.g. 'still slightly low' vs 'now slightly too high').",
+
+  "regression_suite_rerun": {
+    "syntax": "pass",
+    "road_graph_integrity": "pass (unaffected -- farmPlots isn't part of the road graph)",
+    "stuck_at_node_test": "pass",
+    "speed_equalization_test": "pass",
+    "headless_browser_playthrough": "pass (only the expected harmless local-CORS weather-fetch errors)"
+  },
+
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}

@@ -263,9 +263,10 @@ function drawFarmDecor(){
  const xs=plots.map(p=>p[0]),ys=plots.map(p=>p[1]);
  const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
  const cx=(minX+maxX)/2;
- // 허수아비 영웅: 밭 위쪽 가장자리에 배치 (표준 유니코드에 허수아비 이모지가 없어 농부 이모지로 대체 표현)
+ // 허수아비 영웅: 밭 위쪽 가장자리에서 좀 더 위로 올려서 배치 (표준 유니코드에 허수아비
+ // 이모지가 없어 농부 이모지로 대체 표현)
  if(state.upgrades.scarecrow){
-   const p=w2s(cx,minY-4.2);
+   const p=w2s(cx,minY-4.8);
    ctx.save();ctx.font="26px serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.shadowColor="rgba(255,214,102,.8)";ctx.shadowBlur=10;ctx.fillText("🧑‍🌾",p.x,p.y);ctx.restore();
  }
  // 수확도우미 댕댕이: 밭 안에서 목표 지점을 향해 자연스럽게 걷다가 도착하면 잠깐 쉬고,
