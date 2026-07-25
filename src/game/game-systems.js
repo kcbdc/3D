@@ -75,6 +75,34 @@ window.KOMSCO.GameSystems = {
          {text:"인증 없는 최저가 업체",price:400000,correct:false,reason:"품질 미달: 필요 인증서가 없습니다."},
          {text:"해외 수입 프리미엄 세트",price:900000,correct:false,reason:"예산 초과: 상한액을 넘습니다."}
        ]}
+    ],
+    H2_ID:[
+      {title:"신원확인 보안카드 부품 발주",spec:"규격: RFID 보안칩 · 수량: 10,000개 · 예산상한 2,200,000원",rule:0,
+       options:[
+         {text:"중소기업 경쟁제품 인증 부품업체",price:2050000,correct:true,reason:"중소기업 경쟁제품 인증을 보유했고 예산 이내입니다."},
+         {text:"인증 없는 저가 부품업체",price:1400000,correct:false,reason:"품질 미달: 보안칩 관련 인증서가 없습니다."},
+         {text:"해외 수입 프리미엄 업체",price:2600000,correct:false,reason:"예산 초과: 상한액을 넘습니다."}
+       ]},
+      {title:"창업기업 협업 홍보물 제작",spec:"규격: ID본부 홍보 리플렛 · 수량: 5,000부 · 예산상한 600,000원",rule:1,
+       options:[
+         {text:"창업기업 인증 디자인 스튜디오",price:550000,correct:true,reason:"창업기업제품 우선구매 대상이며 예산 이내입니다."},
+         {text:"인증 없는 프리랜서",price:350000,correct:false,reason:"품질 미달: 필요 인증서가 없습니다."},
+         {text:"대행사 프리미엄 패키지",price:800000,correct:false,reason:"예산 초과: 상한액을 넘습니다."}
+       ]}
+    ],
+    H2_PAPER:[
+      {title:"재생용지 원료 발주",spec:"규격: 재활용 등급 1 · 수량: 2톤 · 예산상한 1,000,000원",rule:5,
+       options:[
+         {text:"재활용·재제조 인증 원료업체",price:950000,correct:true,reason:"재활용·재제조물품 우선구매 대상이며 예산 이내입니다."},
+         {text:"인증 없는 일반 펄프업체",price:600000,correct:false,reason:"품질 미달: 재활용 인증이 없습니다."},
+         {text:"해외 프리미엄 원료업체",price:1300000,correct:false,reason:"예산 초과: 상한액을 넘습니다."}
+       ]},
+      {title:"제지 공정용 친환경 약품 발주",spec:"규격: 무염소 표백제 · 수량: 500L · 예산상한 800,000원",rule:3,
+       options:[
+         {text:"녹색제품 인증 화학업체",price:760000,correct:true,reason:"녹색제품(친환경) 의무구매 대상이며 예산 이내입니다."},
+         {text:"인증 없는 저가 업체",price:450000,correct:false,reason:"품질 미달: 친환경 인증이 없습니다."},
+         {text:"수입 프리미엄 업체",price:1050000,correct:false,reason:"예산 초과: 상한액을 넘습니다."}
+       ]}
     ]
   },
   newState(){
@@ -85,7 +113,8 @@ window.KOMSCO.GameSystems = {
       quests:[false,false,false,false],
       farm:Array.from({length:12},()=>({seed:null,plantedAt:0,growMs:0})),
       upgrades:{water:false,scarecrow:false,pet:false},
-      missionIndex:{HQ:0,MINT:0,LAB:0}
+      missionIndex:{HQ:0,MINT:0,LAB:0,H2_ID:0,H2_PAPER:0},
+      farmDisturbance:{cellIdx:-1,expiresAt:0}
     };
   }
 };
