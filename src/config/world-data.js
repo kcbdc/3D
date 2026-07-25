@@ -1,15 +1,16 @@
 window.KOMSCO=window.KOMSCO||{};
 window.KOMSCO.WORLD={
- version:"zoom-hittest-fix-v23",roadWidth:2.6,
+ version:"features-2d-port-v28",roadWidth:2.6,
  nodes:{
   OT_L:[5.4,5.2],OT_C1:[37.9,5.2],OT_C2:[67.3,5.2],OT_R:[96.6,5.2],
   H1_L:[5.4,36.2],H1_HQ:[22.20,36.2],H1_C1:[37.9,36.2],
   H1_MINT:[51.63,36.2],H1_C2:[67.3,36.2],H1_LAB:[79.30,36.2],H1_R:[96.6,36.2],
   H2_L:[5.4,69.2],H2_ID:[20.96,69.2],H2_C1:[37.9,69.2],
   H2_FARM:[51.95,69.2],H2_C2:[67.3,69.2],H2_PAPER:[79.88,69.2],H2_R:[96.6,69.2],
-  H3_L:[5.4,96.2],H3_SHOP:[20.05,96.2],H3_C1:[37.9,96.2],H3_C2:[67.3,96.2],H3_R:[96.6,96.2],
+  H3_L:[5.4,96.2],H3_SHOP:[20.05,96.2],H3_C1:[37.9,96.2],H3_FOUNTAIN:[51.95,96.2],H3_C2:[67.3,96.2],H3_MONUMENT:[79.88,96.2],H3_R:[96.6,96.2],
   HQ:[22.20,35.06],MINT:[51.63,35.06],LAB:[79.30,35.06],
-  FARM:[51.95,68.56]
+  FARM:[51.95,68.56],
+  FOUNTAIN:[51.95,94.3],MONUMENT:[79.88,94.3]
  },
  edges:[
   ["OT_L","OT_C1"],["OT_C1","OT_C2"],["OT_C2","OT_R"],
@@ -21,9 +22,9 @@ window.KOMSCO.WORLD={
   ["H2_FARM","H2_C2"],["H2_C2","H2_PAPER"],["H2_PAPER","H2_R"],
   ["OT_C1","H1_C1"],["H1_C1","H2_C1"],["H2_C1","H3_C1"],
   ["OT_C2","H1_C2"],["H1_C2","H2_C2"],["H2_C2","H3_C2"],
-  ["H3_L","H3_SHOP"],["H3_SHOP","H3_C1"],["H3_C1","H3_C2"],["H3_C2","H3_R"],
+  ["H3_L","H3_SHOP"],["H3_SHOP","H3_C1"],["H3_C1","H3_FOUNTAIN"],["H3_FOUNTAIN","H3_C2"],["H3_C2","H3_MONUMENT"],["H3_MONUMENT","H3_R"],
   ["H1_HQ","HQ"],["H1_MINT","MINT"],["H1_LAB","LAB"],
-  ["H2_FARM","FARM"],
+  ["H2_FARM","FARM"],["H3_FOUNTAIN","FOUNTAIN"],["H3_MONUMENT","MONUMENT"],
  ],
  bridgeEdges:[],waterZones:[],
  hotspots:[
