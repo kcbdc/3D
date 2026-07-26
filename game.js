@@ -390,6 +390,21 @@ function setWeather(kind){
  if(kind===weatherKind)return;
  weatherKind=kind;
  initWeatherParticles(kind);
+ handleWeatherEvent(kind);
+}
+// 날씨 연동 이벤트: 비/눈이 오는 날 하루 1회 특별 보너스 지급 (실시간 날씨와 게임을 실제로 연결)
+function handleWeatherEvent(kind){
+ if(kind!=="rain"&&kind!=="snow")return;
+ const today=todayStr();
+ if(state.lastWeatherBonusDate===today)return; // 오늘 이미 날씨 보너스를 받음
+ state.lastWeatherBonusDate=today;
+ const bonus=kind==="rain"?150:250; // 눈이 더 희귀하니 보상도 더 크게
+ state.gold+=bonus;
+ save();
+ flashGold();
+ const label=kind==="rain"?"☔ 비":"❄️ 눈";
+ toast(`${label}가 내리는 날 특별 보너스 +${bonus}G!`);
+ pushNotification("날씨 이벤트",`오늘은 ${label}가 오는 날이라 ${bonus}G 보너스를 받았습니다.`);
 }
 async function fetchWeather(){
  try{
@@ -450,7 +465,7 @@ function drawPlayer(){
 }
 
 function update(dt){
-  if(!started||gameOverActive)return;
+  if(!started)return;
 
   let dx=0,dy=0;
 
@@ -619,7 +634,7 @@ function institutionThreatExpiryCheck(){
  }
 }
 /* ===================== 도로 위 자동차 (가끔 등장, 충돌 시 게임 종료) ===================== */
-let activeCars=[],gameOverActive=false;
+let activeCars=[];
 function carEdgeInfo(edge){
  const[a,b]=edge,A=WORLD.nodes[a],B=WORLD.nodes[b];
  const vx=B[0]-A[0],vy=B[1]-A[1],len=Math.hypot(vx,vy)||1;
@@ -672,23 +687,25 @@ function drawCars(){
    ctx.restore();
  });
 }
+let lastCollisionAt=0;
 function checkCarCollision(){
- if(gameOverActive)return;
+ if(Date.now()-lastCollisionAt<3000)return; // 충돌 직후 3초간 무적 (같은 차에 연속으로 맞지 않도록)
  for(const c of activeCars){
    const pos=carWorldPos(c);
    if(Math.hypot(state.player.x-pos.x,state.player.y-pos.y)<2.2){
-     triggerGameOver();
+     handleCarHit();
      return;
    }
  }
 }
-function triggerGameOver(){
- if(gameOverActive)return;
- gameOverActive=true;
- openModal(`<h2>🚨 게임 종료</h2><p>도로 위 자동차와 충돌했습니다!</p><p style="opacity:.75;font-size:13px;">저장된 골드·인벤토리·농장은 그대로 남아있습니다. 다시 시작하면 처음 위치에서 이어집니다.</p><button type="button" id="gameOverRestartBtn" class="ai-advisor-btn">🔄 다시 시작</button>`);
- const closeBtn=document.querySelector(".modal-card>button");
- if(closeBtn)closeBtn.style.display="none";
- document.getElementById("gameOverRestartBtn").addEventListener("click",()=>location.reload());
+function handleCarHit(){
+ lastCollisionAt=Date.now();
+ const penalty=Math.min(state.gold,Math.max(50,Math.round(state.gold*0.1)));
+ state.gold-=penalty;
+ save();
+ playSfx("gameover");
+ toast(`🚗 자동차와 부딪혔습니다! -${penalty}G · 다음부턴 조심하세요!`);
+ pushNotification("교통사고 주의",`도로에서 자동차와 부딪혀 ${penalty}G를 잃었습니다.`);
 }
 function shuffleArray(arr){
  const a=arr.slice();
@@ -722,9 +739,11 @@ function resolveMission(h,pool,idx,shuffledOptions,optIdx){
    state.gold+=reward;recalcLevel();state.quests[0]=true;
    state.missionIndex[h.node]=(idx+1)%pool.length;
    save();
+   playSfx("success");
    toast(`✅ 정답! ${h.label} 업무 완료 · +${reward}G`);
    pushNotification("업무 완료",`${h.label}에서 미션을 성공적으로 완료했습니다. +${reward}G`);
  }else{
+   playSfx("fail");
    toast(`❌ ${o.reason}`);
  }
  closeModal();
@@ -739,9 +758,9 @@ function showAiHint(m){
    :"견적가가 예산상한을 넘지 않는지부터 확인하고, 인증서를 보유한 업체인지 살펴보세요.";
  box.innerHTML=`<b>🤖 AI 조달 자문관</b><br>${tip}`;
 }
-function openShop(){let html="<h2>🌱 씨앗상점</h2><div class='shop-grid'>";for(const[id,s]of Object.entries(SEEDS))html+=`<article class="item shop-item"><h3>${s.emoji} ${s.name}</h3><p><b>${s.price}G</b></p><button type="button" data-buy="${id}">구매</button></article>`;html+="</div><h2>🛠️ 농장 도구</h2><div class='shop-grid'>";for(const[id,u]of Object.entries(SYS.upgrades)){const owned=state.upgrades[id];html+=`<article class="item shop-item"><h3>${u.icon} ${u.name}</h3><p>${u.desc}</p><p><b>${owned?"보유 중":u.cost+"G"}</b></p><button type="button" data-upgrade="${id}" ${owned?"disabled":""}>${owned?"구매완료":"구매"}</button></article>`}html+="</div>";openModal(html);document.querySelectorAll("[data-buy]").forEach(b=>b.addEventListener("click",()=>buySeed(b.dataset.buy)));document.querySelectorAll("[data-upgrade]").forEach(b=>b.addEventListener("click",()=>buyUpgrade(b.dataset.upgrade)))}
-function buyUpgrade(id){const u=SYS.upgrades[id];if(state.upgrades[id]){toast("이미 보유한 도구입니다.");return}if(state.gold<u.cost){toast("골드가 부족합니다.");return}state.gold-=u.cost;state.upgrades[id]=true;save();toast(`${u.icon} ${u.name} 구매 완료!`);flashGold();openShop()}
-function buySeed(id){const s=SEEDS[id];if(state.gold<s.price){toast("골드가 부족합니다.");return}state.gold-=s.price;state.inventory[id]++;state.seeds++;state.quests[1]=true;save();toast(`${s.emoji} ${s.name} 구매완료! (보유 ${state.inventory[id]}개, 잔액 ${state.gold.toLocaleString()}G)`);flashGold();openShop()}
+function openShop(){let html="<h2>🌱 씨앗상점</h2><div class='shop-grid'>";for(const[id,s]of Object.entries(SEEDS)){const locked=state.level<s.unlock;html+=`<article class="item shop-item"><h3>${s.emoji} ${s.name}</h3><p><b>${locked?`🔒 Lv.${s.unlock} 필요`:s.price+"G"}</b></p><button type="button" data-buy="${id}" ${locked?"disabled":""}>${locked?"잠김":"구매"}</button></article>`}html+="</div><h2>🛠️ 농장 도구</h2><div class='shop-grid'>";for(const[id,u]of Object.entries(SYS.upgrades)){const owned=state.upgrades[id];const locked=state.level<u.unlock;html+=`<article class="item shop-item"><h3>${u.icon} ${u.name}</h3><p>${u.desc}</p><p><b>${owned?"보유 중":locked?`🔒 Lv.${u.unlock} 필요`:u.cost+"G"}</b></p><button type="button" data-upgrade="${id}" ${owned||locked?"disabled":""}>${owned?"구매완료":locked?"잠김":"구매"}</button></article>`}html+="</div>";openModal(html);document.querySelectorAll("[data-buy]").forEach(b=>b.addEventListener("click",()=>buySeed(b.dataset.buy)));document.querySelectorAll("[data-upgrade]").forEach(b=>b.addEventListener("click",()=>buyUpgrade(b.dataset.upgrade)))}
+function buyUpgrade(id){const u=SYS.upgrades[id];if(state.level<u.unlock){toast(`레벨 ${u.unlock} 이상부터 구매할 수 있습니다.`);return}if(state.upgrades[id]){toast("이미 보유한 도구입니다.");return}if(state.gold<u.cost){toast("골드가 부족합니다.");return}state.gold-=u.cost;state.upgrades[id]=true;save();toast(`${u.icon} ${u.name} 구매 완료!`);flashGold();playSfx("buy");openShop()}
+function buySeed(id){const s=SEEDS[id];if(state.level<s.unlock){toast(`레벨 ${s.unlock} 이상부터 구매할 수 있습니다.`);return}if(state.gold<s.price){toast("골드가 부족합니다.");return}state.gold-=s.price;state.inventory[id]++;state.seeds++;state.quests[1]=true;save();toast(`${s.emoji} ${s.name} 구매완료! (보유 ${state.inventory[id]}개, 잔액 ${state.gold.toLocaleString()}G)`);flashGold();playSfx("buy");openShop()}
 function flashGold(){const el=ui("goldText");if(!el)return;el.classList.remove("flash");void el.offsetWidth;el.classList.add("flash")}
 function plotGrowth(i){
  const f=state.farm[i];
@@ -763,7 +782,7 @@ function plotGrowth(i){
 }
 function openFarm(){let html="<h2>🌿 주말농장</h2><p>각 밭을 선택해 씨앗을 심고 성장 후 수확하세요.</p><div class='farm-grid'>";state.farm.forEach((f,i)=>{if(!f.seed)html+=`<article class=item><h3>밭 ${i+1}</h3><button data-plot="${i}">씨앗 심기</button></article>`;else{const{growth,left,ready}=plotGrowth(i);const stageEmoji=growth>=1?SEEDS[f.seed].emoji:growth<0.34?"🌱":growth<0.7?"🌿":SEEDS[f.seed].emoji;html+=`<article class=item><h3>${stageEmoji} 밭 ${i+1}</h3><div class="farm-progress"><div class="farm-progress-bar" style="width:${Math.round(growth*100)}%"></div></div><p>${ready?"수확 가능":Math.ceil(left/1000)+"초"}</p><button data-plot="${i}">${ready?"수확":"확인"}</button></article>`}});html+="</div>";openModal(html);document.querySelectorAll("[data-plot]").forEach(b=>b.addEventListener("click",()=>usePlot(+b.dataset.plot)))}
 function usePlot(i){const f=state.farm[i];if(!f.seed){let html="<h2>심을 씨앗 선택</h2><div class='shop-grid'>";Object.entries(SEEDS).forEach(([id,s])=>{const owned=state.inventory[id]||0;html+=`<article class="item"><h3>${s.emoji} ${s.name}</h3><p style="opacity:.75;font-size:12px;margin:2px 0;">보유 ${owned}개</p><button type="button" data-plant="${id}" ${owned<=0?"disabled":""}>${owned<=0?"미보유":"심기"}</button></article>`});html+="</div>";openModal(html);document.querySelectorAll("[data-plant]:not(:disabled)").forEach(b=>b.addEventListener("click",()=>plant(i,b.dataset.plant)));return}if(!plotGrowth(i).ready){toast("아직 성장 중입니다.");return}harvestPlot(i);openFarm()}
-function harvestPlot(i){const f=state.farm[i];if(!f.seed)return false;if(!plotGrowth(i).ready)return false;const s=SEEDS[f.seed];let reward=Math.round(s.reward*(state.upgrades.scarecrow?1.1:1));const lucky=state.upgrades.clover&&Math.random()<0.15;if(lucky)reward*=2;state.gold+=reward;state.harvest++;state.quests[3]=true;state.farm[i]={seed:null,plantedAt:0,growMs:0};save();if(lucky)toast(`🍀 행운! 수확 보상 2배 · +${reward}G`);return reward}
+function harvestPlot(i){const f=state.farm[i];if(!f.seed)return false;if(!plotGrowth(i).ready)return false;const s=SEEDS[f.seed];let reward=Math.round(s.reward*(state.upgrades.scarecrow?1.1:1));const lucky=state.upgrades.clover&&Math.random()<0.15;if(lucky)reward*=2;state.gold+=reward;state.harvest++;state.quests[3]=true;state.farm[i]={seed:null,plantedAt:0,growMs:0};save();playSfx("harvest");if(lucky)toast(`🍀 행운! 수확 보상 2배 · +${reward}G`);return reward}
 function petAutoHarvestTick(){
  if(!state.upgrades.pet)return;
  let total=0,count=0;
@@ -771,8 +790,39 @@ function petAutoHarvestTick(){
  if(count)toast(`🐶 수확도우미가 ${count}개 작물을 자동 수확 · +${total}G`);
 }
 async function serverNow(){try{const r=await fetch("./api/time");if(r.ok)return(await r.json()).now}catch{}return Date.now()}
-async function plant(i,id){state.inventory[id]--;state.seeds--;let growMultiplier=1;if(state.upgrades.water)growMultiplier*=0.8;if(state.upgrades.fertilizer)growMultiplier*=0.9;const growMs=Math.round(SEEDS[id].grow*growMultiplier);state.farm[i]={seed:id,plantedAt:await serverNow(),growMs};state.quests[2]=true;closeModal();save()}
+async function plant(i,id){state.inventory[id]--;state.seeds--;let growMultiplier=1;if(state.upgrades.water)growMultiplier*=0.8;if(state.upgrades.fertilizer)growMultiplier*=0.9;const growMs=Math.round(SEEDS[id].grow*growMultiplier);state.farm[i]={seed:id,plantedAt:await serverNow(),growMs};state.quests[2]=true;closeModal();save();playSfx("plant")}
 function updateUI(near){ui("goldText").textContent=state.gold.toLocaleString();ui("seedText").textContent=state.seeds;ui("harvestText").textContent=state.harvest;ui("levelText").textContent=state.level;ui("heroName").textContent=CHARS[state.character].name;ui("portrait").src=CHAR_BASE+CHARS[state.character].img;ui("regionText").textContent=near?near.label:(state.player.x>66?"주말농장 지구":"네온 중앙지구");const labels=["회사 본부에서 업무 수행","씨앗상점에서 씨앗 구매","주말농장에 씨앗 심기","다 자란 작물 수확"];ui("questList").innerHTML=labels.map((x,i)=>`<li class="${state.quests[i]?"done":""}">${x} ${state.quests[i]?"1/1":"0/1"}</li>`).join("");ui("inventoryPreview").innerHTML=Object.entries(SEEDS).map(([id,s])=>`<span>${s.emoji}<small>${state.inventory[id]}</small></span>`).join("")}
+/* ===================== 효과음 (Web Audio API로 직접 생성, 별도 파일 불필요) ===================== */
+let audioCtx=null;
+function getAudioCtx(){
+ if(!audioCtx){try{audioCtx=new(window.AudioContext||window.webkitAudioContext)()}catch{}}
+ return audioCtx;
+}
+function playTone(freq,duration,type,startDelay,gainPeak){
+ const ctx=getAudioCtx();
+ if(!ctx)return;
+ const t0=ctx.currentTime+(startDelay||0);
+ const osc=ctx.createOscillator(),gain=ctx.createGain();
+ osc.type=type||"sine";
+ osc.frequency.setValueAtTime(freq,t0);
+ gain.gain.setValueAtTime(0,t0);
+ gain.gain.linearRampToValueAtTime(gainPeak||0.15,t0+0.02);
+ gain.gain.exponentialRampToValueAtTime(0.001,t0+duration);
+ osc.connect(gain);gain.connect(ctx.destination);
+ osc.start(t0);osc.stop(t0+duration+0.05);
+}
+function playSfx(name){
+ switch(name){
+   case"harvest":playTone(660,.12,"sine",0);playTone(880,.15,"sine",.08);break;
+   case"buy":playTone(520,.08,"square",0);break;
+   case"plant":playTone(440,.08,"triangle",0);break;
+   case"levelup":playTone(523,.12,"sine",0);playTone(659,.12,"sine",.12);playTone(784,.2,"sine",.24);break;
+   case"success":playTone(700,.1,"sine",0);playTone(900,.15,"sine",.1);break;
+   case"fail":playTone(220,.25,"sawtooth",0);break;
+   case"notify":playTone(880,.08,"sine",0);break;
+   case"gameover":playTone(200,.3,"sawtooth",0);playTone(150,.4,"sawtooth",.25);break;
+ }
+}
 function openModal(html){ui("modalBody").innerHTML=html;ui("modal").classList.add("show")}function closeModal(){ui("modal").classList.remove("show")}function toast(t){ui("toast").textContent=t;ui("toast").classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>ui("toast").classList.remove("show"),1700)}
 function save(){localStorage.setItem("komscoExactMapFullscreenRouteV9",JSON.stringify(state))}
 function load(){
@@ -870,10 +920,30 @@ ui("autoBtn").addEventListener("click",()=>{
  const h=WORLD.hotspots.reduce((a,b)=>Math.hypot(state.player.x-a.x,state.player.y-a.y)<Math.hypot(state.player.x-b.x,state.player.y-b.y)?a:b);
  startAuto(h);
 });
-ui("rankingBtn").addEventListener("click",()=>openModal(`<h2>🏆 랭킹</h2><div class=item><b>현재 점수</b><p>${state.gold+state.harvest*100+state.level*1000}</p></div>`));ui("codexBtn").addEventListener("click",()=>openModal(`<h2>📖 도감</h2><div class=item><p>업무·씨앗·작물 도감이 표시되는 영역입니다.</p></div>`));ui("settingsBtn").addEventListener("click",()=>openModal(`<h2>⚙️ 설정</h2><div class=item><p>낮·밤 자동 전환과 가로 화면 고정이 적용되어 있습니다.</p></div>`));ui("notifBtn").addEventListener("click",openNotifPanel);ui("shareBtn").addEventListener("click",shareGame);ui("communityBtn").addEventListener("click",openCommunityPanel);
+ui("rankingBtn").addEventListener("click",openRankingPanel);ui("codexBtn").addEventListener("click",()=>openModal(`<h2>📖 도감</h2><div class=item><p>업무·씨앗·작물 도감이 표시되는 영역입니다.</p></div>`));ui("settingsBtn").addEventListener("click",()=>openModal(`<h2>⚙️ 설정</h2><div class=item><p>낮·밤 자동 전환과 가로 화면 고정이 적용되어 있습니다.</p></div>`));ui("notifBtn").addEventListener("click",openNotifPanel);ui("shareBtn").addEventListener("click",shareGame);ui("communityBtn").addEventListener("click",openCommunityPanel);
 ui("menuBtn").addEventListener("click",()=>{ui("utilityDrawer").classList.toggle("open");ui("utilityDrawer").setAttribute("aria-hidden",String(!ui("utilityDrawer").classList.contains("open")))});ui("drawerClose").addEventListener("click",()=>ui("utilityDrawer").classList.remove("open"));ui("shopShortcut").addEventListener("click",openShop);
 ui("questCollapse").addEventListener("click",()=>ui("questPanel").classList.toggle("collapsed"));ui("claimRewardBtn").addEventListener("click",()=>{if(state.quests.every(Boolean)){state.gold+=500;state.quests=[false,false,false,false];save();toast("일일 보상 +500G")}else toast("모든 미션을 완료하세요.")});ui("modalClose").addEventListener("click",closeModal);ui("modal").addEventListener("click",e=>{if(e.target===ui("modal"))closeModal()});
-ui("startBtn").addEventListener("click",async()=>{state.character=selected;started=true;ui("characterSelect").classList.remove("show");await KOMSCO.Orientation.lockLandscape();save();toast(`${CHARS[selected].name}과 함께 시작합니다.`)});
+ui("startBtn").addEventListener("click",async()=>{state.character=selected;started=true;ui("characterSelect").classList.remove("show");await KOMSCO.Orientation.lockLandscape();save();if(!state.tutorialDone)showTutorial();else{checkDailyAttendance();toast(`${CHARS[selected].name}과 함께 시작합니다.`)}});
+function showTutorial(){
+ const steps=[
+   {title:"👋 환영합니다!",body:"KOMSCO 네온팜 시티에 오신 것을 환영합니다. 몇 가지만 빠르게 안내해드릴게요."},
+   {title:"🕹️ 이동하기",body:"왼쪽 아래 방향키로 이동하고, 가운데 AUTO 버튼을 누르면 가까운 건물까지 자동으로 이동합니다."},
+   {title:"🏢 상호작용", body:"건물이나 시설 근처에 가면 오른쪽 아래 '상호작용' 버튼이 활성화됩니다. 눌러서 업무를 수행하거나 씨앗을 심어보세요."},
+   {title:"🌱 씨앗상점 & 주말농장", body:"씨앗상점에서 씨앗을 구매하고, 주말농장의 빈 밭에 심어 키운 뒤 다 자라면 수확해 골드를 얻으세요."},
+   {title:"📅 매일 접속하세요", body:"매일 접속하면 출석 보상을 받을 수 있고, 오늘의 미션을 모두 완료하면 퀘스트 패널에서 추가 보상도 받을 수 있어요. 즐거운 플레이 되세요!"}
+ ];
+ let idx=0;
+ function render(){
+   const s=steps[idx];
+   const isLast=idx===steps.length-1;
+   openModal(`<h2>${s.title}</h2><p>${s.body}</p><button type="button" id="tutorialNextBtn" class="ai-advisor-btn">${isLast?"시작하기":"다음"}</button><p style="text-align:center;opacity:.6;font-size:12px;margin-top:8px;">${idx+1} / ${steps.length}</p>`);
+   document.getElementById("tutorialNextBtn").addEventListener("click",()=>{
+     if(isLast){state.tutorialDone=true;save();closeModal();checkDailyAttendance();toast(`${CHARS[state.character].name}과 함께 시작합니다.`)}
+     else{idx++;render()}
+   });
+ }
+ render();
+}
 
 function showFatal(error,source="",line=0,column=0){
  console.error("[KOMSCO Runtime Error]",error,source,line,column);
@@ -937,7 +1007,26 @@ function recalcLevel(){
    const bonus=state.level*20;
    grantMail(`레벨 업! Lv.${state.level}`,`축하합니다! 레벨 ${state.level}에 도달했습니다.`,bonus);
    pushNotification("레벨 업",`Lv.${state.level} 달성! 우편함에서 보너스를 받아가세요.`);
+   playSfx("levelup");
  }
+}
+/* ===================== 출석체크 (매일 재접속 유인) ===================== */
+function todayStr(){const d=new Date();return`${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`}
+function checkDailyAttendance(){
+ const today=todayStr();
+ if(state.lastAttendanceDate===today)return; // 오늘 이미 출석함
+ const yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);
+ const wasConsecutive=state.lastAttendanceDate===`${yesterday.getFullYear()}-${yesterday.getMonth()+1}-${yesterday.getDate()}`;
+ state.attendanceStreak=wasConsecutive?state.attendanceStreak+1:1;
+ state.lastAttendanceDate=today;
+ const streakDay=Math.min(7,state.attendanceStreak); // 7일 주기로 순환
+ const bonus=100*streakDay; // 1일차 100G ~ 7일차 700G
+ state.gold+=bonus;
+ save();
+ flashGold();
+ openModal(`<h2>📅 출석체크</h2><p>${state.attendanceStreak}일 연속 출석 중입니다!</p>
+   <div class="share-link-box" style="text-align:center;font-size:22px;">🎁 +${bonus}G</div>
+   <p style="opacity:.7;font-size:12px;">매일 접속하면 7일차까지 보상이 점점 커집니다 (최대 700G, 이후 다시 순환).</p>`);
 }
 const NOTIF_KEY="komscoNotifV1",MAIL_KEY="komscoMailV1";
 function loadList(key){try{return JSON.parse(localStorage.getItem(key)||"[]")}catch{return[]}}
@@ -947,6 +1036,7 @@ function pushNotification(title,body){
  list.unshift({id:"n"+Date.now()+Math.random().toString(36).slice(2,6),title,body,ts:Date.now(),read:false});
  saveList(NOTIF_KEY,list.slice(0,40));
  updateNotifBadge();
+ playSfx("notify");
 }
 function grantMail(title,body,gold){
  const list=loadList(MAIL_KEY);
@@ -1028,6 +1118,38 @@ async function sendHeartbeat(){
    }
    if(data.ok&&Array.isArray(data.unreadDms))checkDmNotifications(data.unreadDms);
  }catch{} // 네트워크 문제로 하트비트가 실패해도 게임 플레이에는 영향 없음
+ submitRanking(); // 같은 20초 주기에 랭킹 점수도 함께 갱신
+}
+async function submitRanking(){
+ const acc=getAccount();
+ if(!acc)return;
+ const score=state.gold+state.harvest*100+state.level*1000;
+ try{
+   await fetch("./api/ranking-submit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({userId:acc.id,score,level:state.level,harvest:state.harvest})});
+ }catch{}
+}
+async function openRankingPanel(){
+ const myScore=state.gold+state.harvest*100+state.level*1000;
+ const acc=getAccount();
+ openModal(`<h2>🏆 랭킹</h2><div class="item"><b>내 점수</b><p>${myScore.toLocaleString()}</p></div><div id="rankingListBox"><p style="opacity:.7;">불러오는 중...</p></div>`);
+ if(!acc){
+   const box=document.getElementById("rankingListBox");
+   if(box)box.innerHTML="<p style='opacity:.7;'>커뮤니티에 로그인하면 전체 랭킹을 볼 수 있습니다.</p>";
+   return;
+ }
+ await submitRanking(); // 랭킹을 열어보는 시점에도 최신 점수를 바로 반영
+ try{
+   const res=await fetch("./api/ranking");
+   const data=await res.json();
+   const box=document.getElementById("rankingListBox");
+   if(!box)return;
+   const list=data.ok?data.ranking:[];
+   if(!list.length){box.innerHTML="<p style='opacity:.7;'>아직 랭킹 데이터가 없습니다.</p>";return}
+   box.innerHTML="<div class='shop-grid'>"+list.map((r,i)=>`<article class="item"><p>${i+1}위 · ${r.nickname||"조폐 히어로"}${r.user_id===acc.id?" (나)":""}</p><p style="opacity:.75;font-size:12px;">Lv.${r.level} · ${Number(r.score).toLocaleString()}점</p></article>`).join("")+"</div>";
+ }catch{
+   const box=document.getElementById("rankingListBox");
+   if(box)box.innerHTML="<p style='opacity:.7;'>랭킹을 불러오지 못했습니다.</p>";
+ }
 }
 function startHeartbeat(){
  if(heartbeatTimer)return;
@@ -1266,18 +1388,20 @@ async function shareGame(){
    {icon:"🐦",label:"X(트위터)",href:`https://twitter.com/intent/tweet?text=${enc(payload.text)}&url=${enc(payload.url)}`},
    {icon:"🟢",label:"라인",href:`https://social-plugins.line.me/lineit/share?url=${enc(payload.url)}&text=${enc(payload.text)}`}
  ];
- let html=`<h2>📤 게임 친구 공유하기</h2><p>친구에게 KOMSCO 네온팜 시티 링크를 공유해보세요.</p><div class="share-grid">`;
+ let html=`<h2>📤 게임 친구 공유하기</h2><p>친구에게 KOMSCO 네온팜 시티 링크를 공유해보세요.${state.shareRewardClaimed?"":" (첫 공유 시 보너스 골드 지급!)"}</p><div class="share-grid">`;
  channels.forEach((c,i)=>{
    if(c.kind==="native")html+=`<button type="button" class="share-chip" id="shareKakaoBtn">${c.icon} ${c.label}</button>`;
-   else html+=`<a class="share-chip" href="${c.href}" target="_blank" rel="noopener">${c.icon} ${c.label}</a>`;
+   else html+=`<a class="share-chip" href="${c.href}" target="_blank" rel="noopener" data-share-channel="1">${c.icon} ${c.label}</a>`;
  });
  html+=`<button type="button" id="shareCopyBtn" class="share-chip share-chip-copy">🔗 링크복사</button></div>
    <div class="share-link-box"><span id="shareLinkText">${payload.url}</span></div>`;
  openModal(html);
+ document.querySelectorAll("[data-share-channel]").forEach(el=>el.addEventListener("click",claimShareRewardOnce));
  const copyBtn=document.getElementById("shareCopyBtn");
  if(copyBtn)copyBtn.addEventListener("click",async()=>{
    try{await navigator.clipboard.writeText(msg);copyBtn.textContent="✅ 복사 완료"}
    catch{copyBtn.textContent="복사 실패, 직접 선택해 복사해주세요"}
+   claimShareRewardOnce();
  });
  // 카카오톡 전용: 이 프로젝트엔 Kakao SDK 앱 키가 연동되어 있지 않아 정식 "카카오톡으로
  // 공유" 버튼을 만들 수 없습니다. 대신 OS 기본 공유창(navigator.share)을 띄워, 설치된 앱
@@ -1286,12 +1410,23 @@ async function shareGame(){
  // 보일 수 있습니다 -- 이 버튼에서만 발생하는, OS 자체의 제약입니다.)
  const kakaoBtn=document.getElementById("shareKakaoBtn");
  if(kakaoBtn)kakaoBtn.addEventListener("click",async()=>{
+   claimShareRewardOnce();
    if(navigator.share){
      try{await navigator.share(payload);return}catch{}
    }
    try{await navigator.clipboard.writeText(msg);toast("카카오톡 공유는 이 브라우저에서 지원되지 않아 링크를 복사했습니다. 카카오톡에 붙여넣어 주세요.")}
    catch{toast("카카오톡 앱에 아래 링크를 직접 붙여넣어 공유해주세요: "+payload.url)}
  });
+}
+// 바이럴 훅: 첫 공유 시 1회 한정 보너스 골드 지급 (별도의 리퍼럴 추적 백엔드 없이 간단하게 구현)
+function claimShareRewardOnce(){
+ if(state.shareRewardClaimed)return;
+ state.shareRewardClaimed=true;
+ state.gold+=300;
+ save();
+ flashGold();
+ toast("🎁 첫 공유 보너스 +300G 지급!");
+ pushNotification("공유 보너스","친구에게 게임을 공유해주셔서 300G를 지급했습니다.");
 }
 
 (async()=>{

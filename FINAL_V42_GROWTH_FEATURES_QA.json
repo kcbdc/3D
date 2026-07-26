@@ -1,0 +1,28 @@
+{
+  "version": "2026.07.25-growth-features-v42",
+  "context": "Implementation of the 8-item growth/retention feature package from the game-expert review, targeting option B (public PR/mascot game, not a commercial IAP product).",
+  "features": {
+    "1_daily_reengagement_loop": "Calendar-date-based attendance streak (separate from the existing repeatable 4-action daily reward, left untouched). Consecutive days increase the bonus from 100G to 700G on day 7, then cycles. Triggers once per real day on game start.",
+    "2_onboarding": "5-step tutorial modal shown once on a brand-new save's first start, covering movement/interaction/shop/farm.",
+    "3_level_gated_unlocks": "Added unlock-level requirements to all 12 seeds and 5 upgrades. Locked items show a lock icon and disabled button; purchase functions double-check the requirement themselves too.",
+    "4_ranking_wired_up": "Added functions/api/ranking-submit.js and wired score submission into the existing 20-second heartbeat cycle. The ranking panel now shows a real top-50 leaderboard from the previously-unused functions/api/ranking.js, with a graceful logged-out fallback.",
+    "5_sound": "Procedural Web Audio API sound effects (no files needed) for harvest, purchase, planting, level-up, mission success/failure, notifications, and car collision. Scope note: SFX only, not full background music.",
+    "6_gameover_redesign": "Replaced the hard game-over screen with a softer consequence: a 10% gold penalty (min 50G) plus 3 seconds of invincibility, no reload required.",
+    "7_viral_hook": "First use of any share channel grants a one-time 300G bonus, tracked so it can't repeat.",
+    "8_weather_linked_events": "The first time it becomes rainy or snowy on a given day, the player gets a one-time bonus (150G rain, 250G snow). Scope note: gameplay reward only, not the cosmetic umbrella-NPC visual."
+  },
+  "verification": {
+    "syntax": "node --check passes on game.js, game-systems.js, and ranking-submit.js.",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity, the stuck-at-node escape test, the speed-equalization test, and a standard headless-browser playthrough (updated to dismiss the new tutorial/attendance modals) all pass with only the expected harmless local-CORS weather-fetch errors.",
+    "new_feature_flows_tested": "Attendance streak/bonus, tutorial gating, level-gated shop locking (including blocking a direct purchase attempt), ranking panel logged-out fallback, and share-reward one-time-claim were all directly tested in a live browser."
+  },
+  "deployment_note_important": "schema.sql was not changed this round (ranking-submit.js reuses the existing rankings table from v37), but it still needs to be applied once if the D1 database predates that table.",
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}
