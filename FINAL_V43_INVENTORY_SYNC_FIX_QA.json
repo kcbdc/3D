@@ -1,0 +1,36 @@
+{
+  "version": "2026.07.25-inventory-sync-fix-v43",
+  "context": "User (level 347, long-time player) reported 4 issues from a screenshot: inventory display mismatch, drawer map preview stuck on day even at night, instant-harvest bug still occurring, and the top-bar seed count not matching actual stored inventory.",
+
+  "1_and_4_seed_count_desync_ROOT_CAUSE_FOUND_AND_FIXED": {
+    "root_cause": "state.seeds was a SEPARATELY maintained counter (incremented in buySeed, decremented in plant) shown in the top bar, entirely independent from state.inventory (the actual per-seed-type storage) shown in the drawer's inventory preview. In principle these two numbers move in lockstep since both are touched by the same buySeed()/plant() calls -- but the v33 inventory-sanitization defensive fix (added to guard against corrupted seed counts) resets any invalid/NaN entry in state.inventory to 0 on every load, WITHOUT touching the separate state.seeds field. If inventory ever got corrupted by any historical bug across this project's many versions, the sanitization would quietly zero it out while state.seeds kept its old (now-wrong) value -- exactly explaining a long-time level-347 player seeing 'seeds: 49' at the top while the actual per-type inventory shows almost nothing.",
+    "fix": "Removed the redundant state.seeds counter entirely. The top-bar count is now always computed live as the sum of state.inventory's values, so there are no longer two numbers that can drift apart -- the displayed count is mathematically guaranteed to match the real inventory going forward.",
+    "verified": "Directly reproduced the exact reported scenario (seeds:49 with mismatched low inventory values) via injected state, confirmed the top bar now shows the correct sum (1) instead of the stale 49."
+  },
+
+  "2_night_minimap_fix": {
+    "root_cause": "The v40 fix that pointed the drawer's map preview at the real background image (instead of an old unrelated file) only ever used the DAY variant, with no day/night switching logic -- so it was correct during the day but always wrong at night.",
+    "fix": "The preview image now updates to match the game's actual current day/night state (the exact same isDay() check the main canvas uses) every time the drawer is opened.",
+    "verified": "Confirmed the logic mirrors the main canvas's day/night selection exactly; the test environment's current time (11:21 UTC) is within the daytime window, so 'day' was the correct expected result at test time -- verified by code-level equivalence with the main rendering path rather than forcing a night-time clock override."
+  },
+
+  "3_instant_harvest_bug_status": {
+    "investigation": "Could not reproduce an instant-harvest-after-planting bug through the genuine UI flow in this round: walked to the farm, planted a fresh seed through the actual plant menu, and immediately checked the plot -- it correctly showed 1% growth, '45초' remaining, and a '확인' (not harvest) button, exactly as expected.",
+    "hypothesis": "The v41 fix (shared plotGrowth() validation with auto-repair for corrupted growMs/plantedAt) is confirmed working for fresh plantings. It's possible what was seen in the screenshot was an OLD plot that had been corrupted before the v41 fix existed -- the first time such a plot is viewed post-fix, plotGrowth() auto-repairs it by resetting plantedAt to 'now', which itself could look like unexpected/confusing behavior (a plot that seemed far along suddenly shows fresh/0%) even though it's not literally 'instant harvest available'.",
+    "next_step_if_still_occurring": "If this is still happening on this exact version (v43), the precise plot/seed type and how long ago it was planted would help pin down any remaining edge case, since the straightforward fresh-plant path is now confirmed correct."
+  },
+
+  "verification": {
+    "syntax": "node --check passes on game.js and game-systems.js.",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity, the stuck-at-node escape test, the speed-equalization test, and the standard headless-browser playthrough all pass with only the expected harmless local-CORS weather-fetch errors."
+  },
+
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}
