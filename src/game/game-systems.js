@@ -7,27 +7,27 @@ window.KOMSCO.GameSystems = {
   },
   // 12종 (2D 버전 cropsData 참고: growthTime(단위)을 11250ms/단위로 환산해 기존 당근(45000ms=4단위)과 맞춤)
   seeds:{
-    potato:{name:"감자",emoji:"🥔",price:40,grow:45000,reward:100},
-    carrot:{name:"당근",emoji:"🥕",price:48,grow:56250,reward:120},
-    sweetpotato:{name:"고구마",emoji:"🍠",price:80,grow:78750,reward:200},
-    tomato:{name:"토마토",emoji:"🍅",price:100,grow:90000,reward:250},
-    corn:{name:"옥수수",emoji:"🌽",price:124,grow:112500,reward:310},
-    strawberry:{name:"딸기",emoji:"🍓",price:160,grow:135000,reward:400},
-    watermelon:{name:"수박",emoji:"🍉",price:200,grow:168750,reward:500},
-    pumpkin:{name:"호박",emoji:"🎃",price:224,grow:191250,reward:560},
-    apple:{name:"사과나무",emoji:"🌳",price:400,grow:281250,reward:1000},
-    coconut:{name:"코코넛나무",emoji:"🌴",price:1000,grow:393750,reward:2500},
-    orange:{name:"오렌지나무",emoji:"🌳",price:400,grow:281250,reward:1000},
-    pineapple:{name:"파인애플",emoji:"🍍",price:1600,grow:506250,reward:4000}
+    potato:{name:"감자",emoji:"🥔",price:40,grow:45000,reward:100,unlock:1},
+    carrot:{name:"당근",emoji:"🥕",price:48,grow:56250,reward:120,unlock:1},
+    sweetpotato:{name:"고구마",emoji:"🍠",price:80,grow:78750,reward:200,unlock:2},
+    tomato:{name:"토마토",emoji:"🍅",price:100,grow:90000,reward:250,unlock:3},
+    corn:{name:"옥수수",emoji:"🌽",price:124,grow:112500,reward:310,unlock:4},
+    strawberry:{name:"딸기",emoji:"🍓",price:160,grow:135000,reward:400,unlock:5},
+    watermelon:{name:"수박",emoji:"🍉",price:200,grow:168750,reward:500,unlock:6},
+    pumpkin:{name:"호박",emoji:"🎃",price:224,grow:191250,reward:560,unlock:7},
+    apple:{name:"사과나무",emoji:"🌳",price:400,grow:281250,reward:1000,unlock:8},
+    coconut:{name:"코코넛나무",emoji:"🌴",price:1000,grow:393750,reward:2500,unlock:9},
+    orange:{name:"오렌지나무",emoji:"🌳",price:400,grow:281250,reward:1000,unlock:9},
+    pineapple:{name:"파인애플",emoji:"🍍",price:1600,grow:506250,reward:4000,unlock:10}
   },
   // 농장 도구 및 업그레이드 (2D 버전 upgradesData 참고). scarecrow는 이 게임엔 까마귀 침입 요소가
   // 없어 "수확 보상 +10%"로 대체 구현.
   upgrades:{
-    water:{icon:"💧",name:"골든 물뿌리개",desc:"모든 작물 성장 시간 20% 단축",cost:150},
-    scarecrow:{icon:"🌾",name:"허수아비 영웅",desc:"모든 작물 수확 보상 10% 증가",cost:300},
-    pet:{icon:"🐶",name:"수확도우미 댕댕이",desc:"다 자란 작물을 자동으로 수확",cost:600},
-    fertilizer:{icon:"🧪",name:"성장촉진 비료",desc:"모든 작물 성장 시간 추가 10% 단축",cost:450},
-    clover:{icon:"🍀",name:"행운의 네잎클로버",desc:"수확 시 15% 확률로 보상 2배",cost:800}
+    water:{icon:"💧",name:"골든 물뿌리개",desc:"모든 작물 성장 시간 20% 단축",cost:150,unlock:1},
+    scarecrow:{icon:"🌾",name:"허수아비 영웅",desc:"모든 작물 수확 보상 10% 증가",cost:300,unlock:3},
+    pet:{icon:"🐶",name:"수확도우미 댕댕이",desc:"다 자란 작물을 자동으로 수확",cost:600,unlock:6},
+    fertilizer:{icon:"🧪",name:"성장촉진 비료",desc:"모든 작물 성장 시간 추가 10% 단축",cost:450,unlock:5},
+    clover:{icon:"🍀",name:"행운의 네잎클로버",desc:"수확 시 15% 확률로 보상 2배",cost:800,unlock:8}
   },
   // 기관별 순찰 방해요소 (도둑/해커/보이스피싱범) -- 방치하면 골드 피해, 순찰하면 보너스 지급
   threatTypes:{
@@ -123,7 +123,13 @@ window.KOMSCO.GameSystems = {
       upgrades:{water:false,scarecrow:false,pet:false,fertilizer:false,clover:false},
       missionIndex:{HQ:0,MINT:0,LAB:0,H2_ID:0,H2_PAPER:0},
       farmDisturbance:{cellIdx:-1,expiresAt:0},
-      institutionThreats:{}
+      institutionThreats:{},
+      lastQuestResetDate:null,
+      attendanceStreak:0,
+      lastAttendanceDate:null,
+      tutorialDone:false,
+      shareRewardClaimed:false,
+      lastWeatherBonusDate:null
     };
   }
 };
