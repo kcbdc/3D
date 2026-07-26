@@ -35,6 +35,24 @@ window.KOMSCO.GameSystems = {
     hacker:{icon:"💻",name:"해커",desc:"전산망을 노리는 해커가 침입을 시도합니다!"},
     phishing:{icon:"📞",name:"보이스피싱범",desc:"직원을 노린 보이스피싱 시도가 감지되었습니다!"}
   },
+  // 도감 등급: 씨앗별 누적 수확 횟수에 따라 동/은/금 뱃지, 완전 달성 시 특별 칭호
+  codexTiers:[
+    {count:1,icon:"🥉",name:"첫 수확",bonus:50},
+    {count:10,icon:"🥈",name:"숙련",bonus:200},
+    {count:100,icon:"🥇",name:"마스터",bonus:1000}
+  ],
+  // 도전과제(업적): 여러 시스템에 걸친 누적 지표 기준
+  achievements:[
+    {id:"cars100",icon:"🚗",name:"베테랑 운전자",desc:"자동차 100번 무사히 피하기",check:s=>s.stats.carsSurvived>=100,bonus:500},
+    {id:"missions50",icon:"📋",name:"조달 전문가",desc:"본부 미션 50회 성공",check:s=>s.stats.missionsWon>=50,bonus:500},
+    {id:"friends10",icon:"⭐",name:"인싸 조폐인",desc:"즐겨찾기 친구 10명 등록",check:(s,favCount)=>(favCount||0)>=10,bonus:500,needsFavCount:true},
+    {id:"distance10k",icon:"🏃",name:"네온시티 탐험가",desc:"누적 이동거리 10,000 이동",check:s=>s.stats.distanceTraveled>=10000,bonus:300},
+    {id:"gold100k",icon:"💰",name:"조폐공사 부자",desc:"누적 골드 100,000G 획득",check:s=>s.stats.lifetimeGoldEarned>=100000,bonus:1000},
+    {id:"prestige1",icon:"🔄",name:"새 출발",desc:"환생 1회 이상 달성",check:s=>s.prestigeLevel>=1,bonus:500}
+  ],
+  // 환생(전직): 레벨 20 이상부터 가능, 환생마다 영구 수확 보상 +3% (최대치 없음)
+  prestigeUnlockLevel:20,
+  prestigeBonusPerLevel:0.03,
   // 본부 미션 풀 (2D 버전 MISSION_POOL/RULE_LIST 참고, 간략화된 버전)
   ruleList:[
     "중소기업자간 경쟁제품 우선구매","여성기업제품 우선구매",
@@ -129,7 +147,16 @@ window.KOMSCO.GameSystems = {
       lastAttendanceDate:null,
       tutorialDone:false,
       shareRewardClaimed:false,
-      lastWeatherBonusDate:null
+      lastWeatherBonusDate:null,
+      harvestCounts:{potato:0,carrot:0,sweetpotato:0,tomato:0,corn:0,strawberry:0,watermelon:0,pumpkin:0,apple:0,coconut:0,orange:0,pineapple:0},
+      codexClaimed:{},
+      masterFarmerTitle:false,
+      lastMysteryBoxDate:null,
+      prestigeLevel:0,
+      stats:{carsSurvived:0,missionsWon:0,distanceTraveled:0,lifetimeGoldEarned:0},
+      achievementsClaimed:{},
+      lastCheerSentDate:{},
+      notifPermissionAsked:false
     };
   }
 };
