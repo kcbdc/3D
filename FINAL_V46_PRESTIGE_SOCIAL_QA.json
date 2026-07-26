@@ -1,0 +1,30 @@
+{
+  "version": "2026.07.25-prestige-social-v46",
+  "context": "Implementation of items 2, 3, 5, 6, 7 from the game-expert consulting review: browser push notifications, prestige/rebirth, friend cheer co-op feature, weekly featured-crop event, and achievements.",
+  "features": {
+    "2_browser_notifications": "Settings panel has a notification-permission button. Once granted, every in-app notification also fires a real OS-level browser Notification, and planting schedules one for when that crop finishes growing. Honest limitation: only works while the tab is open (backgrounded is fine, fully closed is not) -- true closed-app push needs VAPID keys, a subscription table, and a server scheduler that would also require syncing farm state to the server, which is out of scope for this pass.",
+    "3_prestige_rebirth": "Available from Settings once level 20+. Resets gold/level/harvest/inventory/farm for a permanent +3%-per-prestige multiplier on harvest and mission rewards. Upgrades, codex, and login data are kept. Has a confirmation step.",
+    "5_friend_cheer_coop": "New cheers table + POST /api/cheer (one per friend per day, server-enforced). Cheer button on every user row; sender gets +50G immediately, recipient gets it as mail + notification on their next heartbeat (works even if offline now).",
+    "6_weekly_featured_crop": "One seed deterministically chosen per ISO week (no server storage needed, same for all players), +20% harvest reward, highlighted in the shop with a star badge.",
+    "7_achievements": "6 achievements across existing systems (cars survived, missions won, favorited friends, distance traveled, lifetime gold earned, prestige reached), each with a gold bonus, checked automatically after relevant actions."
+  },
+  "migration_safety": "All new nested state objects use the same deep-merge + sanitization pattern established after the v43 seeds-desync bug.",
+  "verification": {
+    "syntax": "node --check passes on game.js, game-systems.js, cheer.js, and heartbeat.js.",
+    "settings_and_achievements_tested": "Confirmed settings exposes all 3 new entry points and achievements panel renders exactly 6 cards with correct progress count.",
+    "prestige_flow_tested": "Set level 25/gold 50000, confirmed unlock, confirmation dialog, and correct post-prestige state (gold reset plus the prestige achievement bonus stacking on top as expected, upgrades preserved, inventory cleared).",
+    "notification_permission_tested": "Confirmed the button respects an already-denied permission state rather than silently failing.",
+    "cheer_flow_tested": "Mocked backend test: cheer button grants sender +50G and becomes disabled/checked after use.",
+    "weekly_event_tested": "Confirmed the shop shows the featured-crop banner and star-marked highlighted card.",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity, stuck-at-node escape test, speed-equalization test, and standard headless-browser playthrough all pass with only expected harmless local-sandbox errors."
+  },
+  "deployment_note_important": "schema.sql needs to be re-applied to the project's D1 database for the new cheers table to exist.",
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}

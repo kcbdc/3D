@@ -126,6 +126,8 @@ function moveOnRoute(dx,dy,dt){
  const speed=state.player.speed*CHARS[state.character].speed;
  const step=worldStep(info.tx*sign,info.ty*sign,speed,dt);
  const projected=edgeProjection(currentEdge,info.x+step.x,info.y+step.y);
+ const moved=Math.hypot(projected.x-state.player.x,projected.y-state.player.y);
+ state.stats.distanceTraveled+=moved;
  state.player.x=projected.x;state.player.y=projected.y;
  const desired=info.tx*sign<0?-1:1;
  state.player.dirLerp=(state.player.dirLerp??state.player.dir??1)+(desired-(state.player.dirLerp??state.player.dir??1))*Math.min(1,dt*9);
@@ -174,7 +176,7 @@ function drawHotspots(){
     const near=isNearHotspot(h,idx);
     const pulse=Math.sin(t*3)*1.5;
     const threat=state.institutionThreats[h.node];
-    const threatActive=threat&&Date.now()<threat.expiresAt;
+    const threatActive=threat&&gameNow()<threat.expiresAt;
     ctx.save();
     ctx.fillStyle=threatActive?"rgba(255,60,60,.22)":near?"rgba(255,230,96,.20)":"rgba(255,255,255,.035)";
     ctx.strokeStyle=threatActive?"#ff4444":near?"#ffe878":h.color;
@@ -317,12 +319,20 @@ function drawFarmDecor(){
 }
 function farmDisturbanceTick(){
  const dist=state.farmDisturbance;
+ const now=gameNow();
  // 활성 방해요소가 만료되면 정산: 허수아비가 없으면 해당 밭의 성장을 살짝 지연시킴
- if(dist&&dist.cellIdx>=0&&Date.now()>=dist.expiresAt){
+ if(dist&&dist.cellIdx>=0&&now>=dist.expiresAt){
    const f=state.farm[dist.cellIdx];
    if(f&&f.seed&&!state.upgrades.scarecrow){
-     const remaining=f.growMs-(Date.now()-f.plantedAt);
-     if(remaining>0){f.plantedAt+=Math.round(f.growMs*0.12);toast("🐦‍⬛ 까마귀가 작물을 건드려 성장이 조금 지연됐어요!")}
+     const elapsed=now-f.plantedAt;
+     const remaining=f.growMs-elapsed;
+     if(remaining>0){
+       // plantedAt을 미래 시각으로 밀어버리지 않도록(그러면 다음 체크에서 '손상된 데이터'로
+       // 오인되어 성장이 0%로 리셋될 수 있음) 지연량을 '지금까지 지난 시간' 이내로 제한
+       // (성장 초반에 방해요소가 발생하면 지연량이 지난 시간보다 커질 수 있었던 문제)
+       const delay=Math.min(Math.round(f.growMs*0.12),elapsed);
+       if(delay>0){f.plantedAt+=delay;toast("🐦‍⬛ 까마귀가 작물을 건드려 성장이 조금 지연됐어요!")}
+     }
    }else if(f&&f.seed&&state.upgrades.scarecrow){
      toast("🧑‍🌾 허수아비가 까마귀를 쫓아냈어요!");
    }
@@ -331,10 +341,10 @@ function farmDisturbanceTick(){
  }
  if(dist&&dist.cellIdx>=0)return; // 이미 진행 중
  if(Math.random()>0.35)return; // 매 틱마다 35% 확률로만 등장 시도
- const candidates=state.farm.map((f,i)=>f.seed&&(Date.now()-f.plantedAt)<f.growMs?i:-1).filter(i=>i>=0);
+ const candidates=state.farm.map((f,i)=>f.seed&&(now-f.plantedAt)<f.growMs?i:-1).filter(i=>i>=0);
  if(!candidates.length)return;
  const idx=candidates[Math.floor(Math.random()*candidates.length)];
- state.farmDisturbance={cellIdx:idx,expiresAt:Date.now()+5000};
+ state.farmDisturbance={cellIdx:idx,expiresAt:now+5000};
 }
 
 /* ===================== 실시간 날씨 기반 배경 환경 (맑음/흐림/비/눈) =====================
@@ -581,14 +591,14 @@ function startAuto(h){
 function interact(){const h=getNear();if(!h){toast("상호작용 원 안으로 이동하세요.");return}if(h.type==="work")doWork(h);if(h.type==="shop")openShop();if(h.type==="farm")openFarm()}
 function doWork(h){
  const threat=state.institutionThreats[h.node];
- if(threat&&Date.now()<threat.expiresAt){openThreatResponse(h,threat);return}
+ if(threat&&gameNow()<threat.expiresAt){openThreatResponse(h,threat);return}
  const pool=SYS.missionPool[h.node];
  if(pool&&pool.length){openMission(h,pool);return}
  const reward=Math.round(h.reward*CHARS[state.character].reward);state.gold+=reward;recalcLevel();state.quests[0]=true;save();toast(`${h.label} 업무 완료 · +${reward}G`)
 }
 function openThreatResponse(h,threat){
  const tt=SYS.threatTypes[threat.type];
- const secondsLeft=Math.max(0,Math.round((threat.expiresAt-Date.now())/1000));
+ const secondsLeft=Math.max(0,Math.round((threat.expiresAt-gameNow())/1000));
  openModal(`<h2>${tt.icon} ${tt.name} 발생!</h2><p>${tt.desc}</p><p style="opacity:.75;font-size:13px;">${h.label} · 남은 시간 약 ${secondsLeft}초</p>
    <button type="button" id="patrolBtn" class="ai-advisor-btn">🚨 순찰하기 (위협 제거)</button>`);
  document.getElementById("patrolBtn").addEventListener("click",()=>resolveThreat(h));
@@ -605,12 +615,12 @@ function resolveThreat(h){
 function institutionThreatTick(){
  const map={HQ:"thief",MINT:"hacker",LAB:"hacker",H2_ID:"phishing",H2_PAPER:"thief"};
  const nodes=Object.keys(map);
- const anyActive=nodes.some(n=>{const t=state.institutionThreats[n];return t&&Date.now()<t.expiresAt});
+ const anyActive=nodes.some(n=>{const t=state.institutionThreats[n];return t&&gameNow()<t.expiresAt});
  if(anyActive)return; // 한 번에 하나의 위협만 발생 (너무 정신없지 않도록 단순화)
  if(Math.random()>0.3)return; // 15초 틱마다 30% 확률로만 새 위협 발생
  const node=nodes[Math.floor(Math.random()*nodes.length)];
  const type=map[node];
- state.institutionThreats[node]={type,expiresAt:Date.now()+45000}; // 45초 안에 순찰해야 함
+ state.institutionThreats[node]={type,expiresAt:gameNow()+45000}; // 45초 안에 순찰해야 함
  const tt=SYS.threatTypes[type];
  const h=WORLD.hotspots.find(x=>x.node===node);
  pushNotification(`${tt.icon} ${tt.name} 침입 경고`,`${h?h.label:node}에 ${tt.desc}`);
@@ -621,7 +631,7 @@ function institutionThreatTick(){
 function institutionThreatExpiryCheck(){
  for(const node of Object.keys(state.institutionThreats)){
    const threat=state.institutionThreats[node];
-   if(threat&&Date.now()>=threat.expiresAt){
+   if(threat&&gameNow()>=threat.expiresAt){
      const tt=SYS.threatTypes[threat.type];
      const h=WORLD.hotspots.find(x=>x.node===node);
      const loss=Math.round(state.gold*0.05);
@@ -658,7 +668,7 @@ function updateCars(dt){
    c.t+=(c.forward?1:-1)*(stepLen/(info.len||1));
    if(c.t>=1||c.t<=0){
      c.hopsLeft--;
-     if(c.hopsLeft<=0){activeCars.splice(i,1);continue}
+     if(c.hopsLeft<=0){activeCars.splice(i,1);state.stats.carsSurvived++;continue}
      const atNode=c.t>=1?c.edge[1]:c.edge[0];
      const options=carConnectedEdges(atNode).filter(e=>!(e[0]===c.edge[0]&&e[1]===c.edge[1])&&!(e[0]===c.edge[1]&&e[1]===c.edge[0]));
      const nextEdge=options.length?options[Math.floor(Math.random()*options.length)]:c.edge;
@@ -735,13 +745,16 @@ function openMission(h,pool){
 function resolveMission(h,pool,idx,shuffledOptions,optIdx){
  const o=shuffledOptions[optIdx];
  if(o.correct){
-   const reward=Math.round(h.reward*CHARS[state.character].reward);
+   const reward=Math.round(h.reward*CHARS[state.character].reward*(1+state.prestigeLevel*SYS.prestigeBonusPerLevel));
    state.gold+=reward;recalcLevel();state.quests[0]=true;
    state.missionIndex[h.node]=(idx+1)%pool.length;
+   state.stats.missionsWon++;
+   state.stats.lifetimeGoldEarned+=reward;
    save();
    playSfx("success");
    toast(`✅ 정답! ${h.label} 업무 완료 · +${reward}G`);
    pushNotification("업무 완료",`${h.label}에서 미션을 성공적으로 완료했습니다. +${reward}G`);
+   checkAchievements();
  }else{
    playSfx("fail");
    toast(`❌ ${o.reason}`);
@@ -758,14 +771,14 @@ function showAiHint(m){
    :"견적가가 예산상한을 넘지 않는지부터 확인하고, 인증서를 보유한 업체인지 살펴보세요.";
  box.innerHTML=`<b>🤖 AI 조달 자문관</b><br>${tip}`;
 }
-function openShop(){let html="<h2>🌱 씨앗상점</h2><div class='shop-grid'>";for(const[id,s]of Object.entries(SEEDS)){const locked=state.level<s.unlock;html+=`<article class="item shop-item"><h3>${s.emoji} ${s.name}</h3><p><b>${locked?`🔒 Lv.${s.unlock} 필요`:s.price+"G"}</b></p><button type="button" data-buy="${id}" ${locked?"disabled":""}>${locked?"잠김":"구매"}</button></article>`}html+="</div><h2>🛠️ 농장 도구</h2><div class='shop-grid'>";for(const[id,u]of Object.entries(SYS.upgrades)){const owned=state.upgrades[id];const locked=state.level<u.unlock;html+=`<article class="item shop-item"><h3>${u.icon} ${u.name}</h3><p>${u.desc}</p><p><b>${owned?"보유 중":locked?`🔒 Lv.${u.unlock} 필요`:u.cost+"G"}</b></p><button type="button" data-upgrade="${id}" ${owned||locked?"disabled":""}>${owned?"구매완료":locked?"잠김":"구매"}</button></article>`}html+="</div>";openModal(html);document.querySelectorAll("[data-buy]").forEach(b=>b.addEventListener("click",()=>buySeed(b.dataset.buy)));document.querySelectorAll("[data-upgrade]").forEach(b=>b.addEventListener("click",()=>buyUpgrade(b.dataset.upgrade)))}
+function openShop(){const featured=getWeeklyFeaturedSeed();let html="<h2>🌱 씨앗상점</h2><p style=\"opacity:.75;font-size:12px;\">🌟 이번 주 특가 작물은 수확 보상이 20% 늘어납니다.</p><div class='shop-grid'>";for(const[id,s]of Object.entries(SEEDS)){const locked=state.level<s.unlock;const isFeatured=id===featured;html+=`<article class="item shop-item" ${isFeatured?'style="border-color:#ffd166;box-shadow:0 0 10px rgba(255,209,102,.5);"':""}><h3>${s.emoji} ${s.name}${isFeatured?" 🌟":""}</h3><p><b>${locked?`🔒 Lv.${s.unlock} 필요`:s.price+"G"}</b></p><button type="button" data-buy="${id}" ${locked?"disabled":""}>${locked?"잠김":"구매"}</button></article>`}html+="</div><h2>🛠️ 농장 도구</h2><div class='shop-grid'>";for(const[id,u]of Object.entries(SYS.upgrades)){const owned=state.upgrades[id];const locked=state.level<u.unlock;html+=`<article class="item shop-item"><h3>${u.icon} ${u.name}</h3><p>${u.desc}</p><p><b>${owned?"보유 중":locked?`🔒 Lv.${u.unlock} 필요`:u.cost+"G"}</b></p><button type="button" data-upgrade="${id}" ${owned||locked?"disabled":""}>${owned?"구매완료":locked?"잠김":"구매"}</button></article>`}html+="</div>";openModal(html);document.querySelectorAll("[data-buy]").forEach(b=>b.addEventListener("click",()=>buySeed(b.dataset.buy)));document.querySelectorAll("[data-upgrade]").forEach(b=>b.addEventListener("click",()=>buyUpgrade(b.dataset.upgrade)))}
 function buyUpgrade(id){const u=SYS.upgrades[id];if(state.level<u.unlock){toast(`레벨 ${u.unlock} 이상부터 구매할 수 있습니다.`);return}if(state.upgrades[id]){toast("이미 보유한 도구입니다.");return}if(state.gold<u.cost){toast("골드가 부족합니다.");return}state.gold-=u.cost;state.upgrades[id]=true;save();toast(`${u.icon} ${u.name} 구매 완료!`);flashGold();playSfx("buy");openShop()}
 function buySeed(id){const s=SEEDS[id];if(state.level<s.unlock){toast(`레벨 ${s.unlock} 이상부터 구매할 수 있습니다.`);return}if(state.gold<s.price){toast("골드가 부족합니다.");return}state.gold-=s.price;state.inventory[id]++;state.quests[1]=true;save();toast(`${s.emoji} ${s.name} 구매완료! (보유 ${state.inventory[id]}개, 잔액 ${state.gold.toLocaleString()}G)`);flashGold();playSfx("buy");openShop()}
 function flashGold(){const el=ui("goldText");if(!el)return;el.classList.remove("flash");void el.offsetWidth;el.classList.add("flash")}
 function plotGrowth(i){
  const f=state.farm[i];
  if(!f||!f.seed)return{growth:0,left:0,ready:false};
- const growMs=Number(f.growMs),plantedAt=Number(f.plantedAt),now=Date.now();
+ const growMs=Number(f.growMs),plantedAt=Number(f.plantedAt),now=gameNow();
  // 방어적 검증: growMs/plantedAt이 어떤 이유로든 손상되면(NaN, 0 이하, 미래 시각 등)
  // "심자마자 수확 가능"처럼 안전하지 않은 쪽으로 판단하지 않고, 항상 미완료로 처리하며
  // 데이터를 지금 시각으로 리셋해 정상적인 성장 절차를 다시 밟도록 함
@@ -782,15 +795,220 @@ function plotGrowth(i){
 }
 function openFarm(){let html="<h2>🌿 주말농장</h2><p>각 밭을 선택해 씨앗을 심고 성장 후 수확하세요.</p><div class='farm-grid'>";state.farm.forEach((f,i)=>{if(!f.seed)html+=`<article class=item><h3>밭 ${i+1}</h3><button data-plot="${i}">씨앗 심기</button></article>`;else{const{growth,left,ready}=plotGrowth(i);const stageEmoji=growth>=1?SEEDS[f.seed].emoji:growth<0.34?"🌱":growth<0.7?"🌿":SEEDS[f.seed].emoji;html+=`<article class=item><h3>${stageEmoji} 밭 ${i+1}</h3><div class="farm-progress"><div class="farm-progress-bar" style="width:${Math.round(growth*100)}%"></div></div><p>${ready?"수확 가능":Math.ceil(left/1000)+"초"}</p><button data-plot="${i}">${ready?"수확":"확인"}</button></article>`}});html+="</div>";openModal(html);document.querySelectorAll("[data-plot]").forEach(b=>b.addEventListener("click",()=>usePlot(+b.dataset.plot)))}
 function usePlot(i){const f=state.farm[i];if(!f.seed){let html="<h2>심을 씨앗 선택</h2><div class='shop-grid'>";Object.entries(SEEDS).forEach(([id,s])=>{const owned=state.inventory[id]||0;html+=`<article class="item"><h3>${s.emoji} ${s.name}</h3><p style="opacity:.75;font-size:12px;margin:2px 0;">보유 ${owned}개</p><button type="button" data-plant="${id}" ${owned<=0?"disabled":""}>${owned<=0?"미보유":"심기"}</button></article>`});html+="</div>";openModal(html);document.querySelectorAll("[data-plant]:not(:disabled)").forEach(b=>b.addEventListener("click",()=>plant(i,b.dataset.plant)));return}if(!plotGrowth(i).ready){toast("아직 성장 중입니다.");return}harvestPlot(i);openFarm()}
-function harvestPlot(i){const f=state.farm[i];if(!f.seed)return false;if(!plotGrowth(i).ready)return false;const s=SEEDS[f.seed];let reward=Math.round(s.reward*(state.upgrades.scarecrow?1.1:1));const lucky=state.upgrades.clover&&Math.random()<0.15;if(lucky)reward*=2;state.gold+=reward;state.harvest++;state.quests[3]=true;state.farm[i]={seed:null,plantedAt:0,growMs:0};save();playSfx("harvest");if(lucky)toast(`🍀 행운! 수확 보상 2배 · +${reward}G`);return reward}
+function harvestPlot(i){
+ const f=state.farm[i];
+ if(!f.seed)return false;
+ if(!plotGrowth(i).ready)return false;
+ const seedId=f.seed;
+ const s=SEEDS[seedId];
+ let reward=Math.round(s.reward*(state.upgrades.scarecrow?1.1:1)*(1+state.prestigeLevel*SYS.prestigeBonusPerLevel)*(seedId===getWeeklyFeaturedSeed()?1+WEEKLY_EVENT_BONUS:1));
+ const lucky=state.upgrades.clover&&Math.random()<0.15;
+ if(lucky)reward*=2;
+ state.gold+=reward;
+ state.harvest++;
+ state.quests[3]=true;
+ state.farm[i]={seed:null,plantedAt:0,growMs:0};
+ state.harvestCounts[seedId]=(state.harvestCounts[seedId]||0)+1;
+ state.stats.lifetimeGoldEarned+=reward;
+ save();
+ playSfx("harvest");
+ if(lucky){
+   playSfx("jackpot");
+   showJackpotEffect(reward);
+ }else{
+   toast(`${s.emoji} ${s.name} 수확 · +${reward}G`);
+ }
+ checkCodexProgress(seedId);
+ checkAchievements();
+ return reward;
+}
+// 확률형 보상(네잎클로버 2배) 연출 강화: 조용히 골드만 오르는 대신, 카드가 뒤집히는 듯한
+// 짧은 축하 연출 + 전용 효과음으로 "손맛"을 살림
+function showJackpotEffect(reward){
+ const el=document.createElement("div");
+ el.className="jackpot-flash";
+ el.innerHTML=`<div class="jackpot-card">🍀<br>행운 2배!<br><b>+${reward}G</b></div>`;
+ document.body.appendChild(el);
+ setTimeout(()=>el.remove(),1400);
+}
+/* ===================== 도감 (씨앗별 수확 누적 뱃지) ===================== */
+function codexTierIndex(count){
+ let idx=-1;
+ SYS.codexTiers.forEach((t,i)=>{if(count>=t.count)idx=i});
+ return idx; // -1 = 아직 등급 없음, 0=동, 1=은, 2=금
+}
+function checkCodexProgress(seedId){
+ const count=state.harvestCounts[seedId]||0;
+ const tierIdx=codexTierIndex(count);
+ if(tierIdx<0)return;
+ const tier=SYS.codexTiers[tierIdx];
+ const key=`${seedId}_${tierIdx}`;
+ if(state.codexClaimed[key])return; // 이미 지급된 등급
+ state.codexClaimed[key]=true;
+ state.gold+=tier.bonus;
+ save();
+ playSfx("badge");
+ const s=SEEDS[seedId];
+ toast(`${tier.icon} 도감 달성! ${s.name} ${tier.name} · +${tier.bonus}G`);
+ pushNotification("도감 달성",`${s.emoji} ${s.name} ${tier.name} 등급을 달성해 ${tier.bonus}G를 받았습니다.`);
+ checkMasterFarmerTitle();
+}
+function checkMasterFarmerTitle(){
+ if(state.masterFarmerTitle)return;
+ const allGold=Object.keys(SEEDS).every(id=>(state.harvestCounts[id]||0)>=100);
+ if(!allGold)return;
+ state.masterFarmerTitle=true;
+ state.gold+=5000;
+ save();
+ playSfx("levelup");
+ openModal(`<h2>👑 마스터 농부 칭호 획득!</h2><p>12종 작물 전부 100회 이상 수확 — 도감을 완전히 마스터했습니다!</p><div class="share-link-box" style="text-align:center;font-size:20px;">🎁 +5,000G</div>`);
+ pushNotification("칭호 획득","🏆 마스터 농부 칭호를 획득했습니다! 도감을 완전히 마스터했습니다.");
+}
+function openCodex(){
+ const total=Object.keys(SEEDS).length*SYS.codexTiers.length;
+ let claimedCount=Object.keys(state.codexClaimed).length;
+ let html=`<h2>📖 도감</h2><p>씨앗별 누적 수확 횟수에 따라 동/은/금 뱃지를 모아보세요. (${claimedCount}/${total})</p>${state.masterFarmerTitle?'<p style="color:#ffd166;">👑 마스터 농부 칭호 보유 중</p>':""}<div class="shop-grid">`;
+ for(const[id,s]of Object.entries(SEEDS)){
+   const count=state.harvestCounts[id]||0;
+   const badges=SYS.codexTiers.map((t,i)=>{
+     const unlocked=count>=t.count;
+     return `<span style="opacity:${unlocked?1:.25};" title="${t.name} (${t.count}회)">${t.icon}</span>`;
+   }).join(" ");
+   html+=`<article class="item"><h3>${s.emoji} ${s.name}</h3><p style="font-size:13px;">${badges}</p><p style="opacity:.75;font-size:12px;">누적 수확 ${count}회</p></article>`;
+ }
+ html+="</div>";
+ openModal(html);
+}
+/* ===================== 설정 패널 (알림 권한 · 환생 · 도전과제 진입점) ===================== */
+function openSettingsPanel(){
+ const permState=(typeof Notification!=="undefined")?Notification.permission:"unsupported";
+ const permLabel=permState==="granted"?"✅ 허용됨":permState==="denied"?"⛔ 거부됨 (브라우저 설정에서 변경 가능)":"🔔 알림 켜기";
+ openModal(`<h2>⚙️ 설정</h2><div class="item"><p>낮·밤 자동 전환과 가로 화면 고정이 적용되어 있습니다.</p></div>
+   <button type="button" id="notifPermBtn" class="ai-advisor-btn" ${permState==="granted"||permState==="denied"?"disabled":""}>${permLabel}</button>
+   <p style="opacity:.65;font-size:12px;margin:6px 0 14px;">브라우저 알림을 켜면 화면을 안 보고 있어도(탭이 열려있는 동안) 작물이 다 자랐을 때·쪽지가 왔을 때 알려드려요.</p>
+   <button type="button" id="achievementsBtn" class="ai-advisor-btn" style="background:linear-gradient(135deg,#2a7a4f,#155c36);">🏆 도전과제</button>
+   <button type="button" id="prestigeBtn" class="ai-advisor-btn" style="background:linear-gradient(135deg,#7c3aed,#4338ca);margin-top:8px;">🔄 환생</button>`);
+ const permBtn=document.getElementById("notifPermBtn");
+ if(permBtn)permBtn.addEventListener("click",requestNotifPermission);
+ document.getElementById("achievementsBtn").addEventListener("click",openAchievements);
+ document.getElementById("prestigeBtn").addEventListener("click",openPrestigePanel);
+}
+async function requestNotifPermission(){
+ if(typeof Notification==="undefined"){toast("이 브라우저는 알림을 지원하지 않습니다.");return}
+ try{
+   const result=await Notification.requestPermission();
+   state.notifPermissionAsked=true;save();
+   toast(result==="granted"?"🔔 알림이 켜졌습니다!":"알림이 거부되었습니다.");
+   openSettingsPanel();
+ }catch{toast("알림 권한 요청에 실패했습니다.")}
+}
+// 브라우저 알림(탭이 열려있는 동안은 화면을 보고 있지 않아도 전달됨). 서버가 직접 보내는
+// 진짜 '앱을 완전히 꺼도 오는' 푸시는 VAPID 키·구독 저장·서버 스케줄러가 추가로 필요해
+// 이번 범위에는 포함하지 않았습니다.
+function showBrowserNotification(title,body){
+ if(typeof Notification==="undefined"||Notification.permission!=="granted")return;
+ try{new Notification(title,{body,icon:"./public/assets/ui/icon.png"})}catch{}
+}
+/* ===================== 환생(전직): 레벨 20 이상부터, 영구 보상 배율 획득 ===================== */
+function openPrestigePanel(){
+ const canPrestige=state.level>=SYS.prestigeUnlockLevel;
+ const currentBonus=Math.round(state.prestigeLevel*SYS.prestigeBonusPerLevel*100);
+ const nextBonus=Math.round((state.prestigeLevel+1)*SYS.prestigeBonusPerLevel*100);
+ openModal(`<h2>🔄 환생</h2><p>골드·레벨·농장을 초기화하는 대신, 모든 수확 보상에 영구 배율을 얻습니다.</p>
+   <div class="item"><p>현재 환생 횟수: <b>${state.prestigeLevel}회</b> (전체 수확 보상 +${currentBonus}%)</p><p>다음 환생 시: +${nextBonus}%</p></div>
+   <p style="opacity:.7;font-size:12px;">보유 도구·도감 기록·로그인 정보는 유지됩니다. 골드·레벨·씨앗·밭은 초기화됩니다.</p>
+   ${canPrestige?'<button type="button" id="doPrestigeBtn" class="ai-advisor-btn" style="background:linear-gradient(135deg,#7c3aed,#4338ca);">지금 환생하기</button>':`<p style="opacity:.6;">레벨 ${SYS.prestigeUnlockLevel} 이상부터 환생할 수 있습니다. (현재 Lv.${state.level})</p>`}`);
+ if(canPrestige)document.getElementById("doPrestigeBtn").addEventListener("click",confirmPrestige);
+}
+function confirmPrestige(){
+ openModal(`<h2>⚠️ 정말 환생하시겠어요?</h2><p>골드·레벨·농장·인벤토리가 전부 초기화됩니다. 이 작업은 되돌릴 수 없습니다.</p>
+   <button type="button" id="prestigeYesBtn" class="ai-advisor-btn" style="background:linear-gradient(135deg,#7a2e2e,#4a1717);">네, 환생합니다</button>
+   <button type="button" id="prestigeNoBtn" class="ai-advisor-btn" style="margin-top:8px;">취소</button>`);
+ document.getElementById("prestigeYesBtn").addEventListener("click",doPrestige);
+ document.getElementById("prestigeNoBtn").addEventListener("click",openPrestigePanel);
+}
+function doPrestige(){
+ state.prestigeLevel++;
+ state.gold=300;
+ state.level=1;
+ state.harvest=0;
+ state.inventory=Object.fromEntries(Object.keys(SEEDS).map(id=>[id,0]));
+ state.farm=Array.from({length:12},()=>({seed:null,plantedAt:0,growMs:0}));
+ state.quests=[false,false,false,false];
+ save();
+ playSfx("levelup");
+ openModal(`<h2>🔄 환생 완료!</h2><p>환생 ${state.prestigeLevel}회차를 시작합니다.</p><div class="share-link-box" style="text-align:center;font-size:20px;">전체 수확 보상 +${Math.round(state.prestigeLevel*SYS.prestigeBonusPerLevel*100)}%</div>`);
+ checkAchievements();
+}
+/* ===================== 도전과제(업적) ===================== */
+async function getFavoriteCount(){
+ const acc=getAccount();
+ if(!acc)return 0;
+ try{
+   const res=await fetch(`./api/favorites/list?userId=${encodeURIComponent(acc.id)}`);
+   const data=await res.json();
+   return data.ok?data.favorites.length:0;
+ }catch{return 0}
+}
+async function checkAchievements(){
+ const favCount=await getFavoriteCount();
+ let newlyClaimed=[];
+ for(const a of SYS.achievements){
+   if(state.achievementsClaimed[a.id])continue;
+   const passed=a.needsFavCount?a.check(state,favCount):a.check(state);
+   if(passed){
+     state.achievementsClaimed[a.id]=true;
+     state.gold+=a.bonus;
+     newlyClaimed.push(a);
+   }
+ }
+ if(newlyClaimed.length){
+   save();
+   playSfx("badge");
+   newlyClaimed.forEach(a=>pushNotification("도전과제 달성",`${a.icon} ${a.name} 달성! +${a.bonus}G`));
+   toast(`🏆 도전과제 달성! ${newlyClaimed.map(a=>a.icon).join(" ")}`);
+ }
+}
+function openAchievements(){
+ const claimedCount=Object.keys(state.achievementsClaimed).length;
+ let html=`<h2>🏆 도전과제 (${claimedCount}/${SYS.achievements.length})</h2><div class="shop-grid">`;
+ SYS.achievements.forEach(a=>{
+   const done=Boolean(state.achievementsClaimed[a.id]);
+   html+=`<article class="item"><h3 style="opacity:${done?1:.4};">${a.icon} ${a.name}</h3><p style="font-size:12px;opacity:.75;">${a.desc}</p><p style="font-size:12px;color:${done?"#8fe0ff":"#889"};">${done?"✅ 달성 완료":"미달성"}</p></article>`;
+ });
+ html+="</div>";
+ openModal(html);
+ checkAchievements(); // 패널을 열 때마다 최신 진행 상황 재확인 (즐겨찾기 수 등 서버 값 반영)
+}
 function petAutoHarvestTick(){
  if(!state.upgrades.pet)return;
  let total=0,count=0;
- state.farm.forEach((f,i)=>{if(f.seed&&Date.now()-f.plantedAt>=f.growMs){const r=harvestPlot(i);if(r){total+=r;count++}}});
+ state.farm.forEach((f,i)=>{if(f.seed&&plotGrowth(i).ready){const r=harvestPlot(i);if(r){total+=r;count++}}});
  if(count)toast(`🐶 수확도우미가 ${count}개 작물을 자동 수확 · +${total}G`);
 }
 async function serverNow(){try{const r=await fetch("./api/time");if(r.ok)return(await r.json()).now}catch{}return Date.now()}
-async function plant(i,id){state.inventory[id]--;let growMultiplier=1;if(state.upgrades.water)growMultiplier*=0.8;if(state.upgrades.fertilizer)growMultiplier*=0.9;const growMs=Math.round(SEEDS[id].grow*growMultiplier);state.farm[i]={seed:id,plantedAt:await serverNow(),growMs};state.quests[2]=true;closeModal();save();playSfx("plant")}
+let timeOffset=0;
+async function syncTimeOffset(){
+ const before=Date.now();
+ const serverTime=await serverNow();
+ const after=Date.now();
+ // 왕복 시간이 너무 크면(네트워크 지연) 이번 보정은 건너뜀 -- 부정확한 오프셋을 반영하지 않기 위함
+ if(after-before>3000)return;
+ timeOffset=serverTime-Date.now();
+}
+// 심을 때는 서버 시간을 기록하지만, 이후 진행률 체크는 전부 기기의 로컬 시계에 의존했기 때문에
+// 오랜 플레이 중 기기 시계가 자동 보정(NTP 동기화, 시간대 변경 등)되면 실제 경과시간과 어긋나
+// "플레이하다 보면 생기는" 즉시수확 현상이 나타날 수 있었음. gameNow()는 주기적으로 재보정되는
+// 오프셋을 적용해, 로컬 시계가 흔들려도 성장 계산이 일관되게 유지되도록 함
+function gameNow(){return Date.now()+timeOffset}
+async function plant(i,id){state.inventory[id]--;let growMultiplier=1;if(state.upgrades.water)growMultiplier*=0.8;if(state.upgrades.fertilizer)growMultiplier*=0.9;const growMs=Math.round(SEEDS[id].grow*growMultiplier);state.farm[i]={seed:id,plantedAt:await serverNow(),growMs};state.quests[2]=true;closeModal();save();playSfx("plant");scheduleCropReadyNotification(id,growMs)}
+// 브라우저 알림(탭이 열려있는 동안만 동작 -- 완전히 앱을 꺼도 오는 서버 푸시는 별도 인프라 필요)
+function scheduleCropReadyNotification(seedId,growMs){
+ setTimeout(()=>{
+   const s=SEEDS[seedId];
+   showBrowserNotification("🌾 수확할 시간이에요!",`${s.emoji} ${s.name}이(가) 다 자랐습니다. 게임으로 돌아와 수확해보세요!`);
+ },growMs);
+}
 function updateUI(near){ui("goldText").textContent=state.gold.toLocaleString();ui("seedText").textContent=Object.values(state.inventory).reduce((a,b)=>a+(Number(b)||0),0);ui("harvestText").textContent=state.harvest;ui("levelText").textContent=state.level;ui("heroName").textContent=CHARS[state.character].name;ui("portrait").src=CHAR_BASE+CHARS[state.character].img;ui("regionText").textContent=near?near.label:(state.player.x>66?"주말농장 지구":"네온 중앙지구");const labels=["회사 본부에서 업무 수행","씨앗상점에서 씨앗 구매","주말농장에 씨앗 심기","다 자란 작물 수확"];ui("questList").innerHTML=labels.map((x,i)=>`<li class="${state.quests[i]?"done":""}">${x} ${state.quests[i]?"1/1":"0/1"}</li>`).join("");ui("inventoryPreview").innerHTML=Object.entries(SEEDS).map(([id,s])=>`<span>${s.emoji}<small>${state.inventory[id]}</small></span>`).join("")}
 /* ===================== 효과음 (Web Audio API로 직접 생성, 별도 파일 불필요) ===================== */
 let audioCtx=null;
@@ -821,6 +1039,8 @@ function playSfx(name){
    case"fail":playTone(220,.25,"sawtooth",0);break;
    case"notify":playTone(880,.08,"sine",0);break;
    case"gameover":playTone(200,.3,"sawtooth",0);playTone(150,.4,"sawtooth",.25);break;
+   case"jackpot":playTone(523,.1,"sine",0);playTone(659,.1,"sine",.08);playTone(784,.1,"sine",.16);playTone(1047,.25,"sine",.24);break;
+   case"badge":playTone(784,.1,"sine",0);playTone(1047,.2,"sine",.1);break;
  }
 }
 function openModal(html){ui("modalBody").innerHTML=html;ui("modal").classList.add("show")}function closeModal(){ui("modal").classList.remove("show")}function toast(t){ui("toast").textContent=t;ui("toast").classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>ui("toast").classList.remove("show"),1700)}
@@ -839,11 +1059,20 @@ function load(){
      state.upgrades=Object.assign({},fresh.upgrades,v.upgrades||{});
      state.missionIndex=Object.assign({},fresh.missionIndex,v.missionIndex||{});
      state.institutionThreats=Object.assign({},v.institutionThreats||{});
+     state.harvestCounts=Object.assign({},fresh.harvestCounts,v.harvestCounts||{});
+     state.codexClaimed=Object.assign({},v.codexClaimed||{});
+     state.lastCheerSentDate=Object.assign({},v.lastCheerSentDate||{});
+     state.stats=Object.assign({},fresh.stats,v.stats||{});
+     state.achievementsClaimed=Object.assign({},v.achievementsClaimed||{});
      // 방어적 정리: 어떤 이유로든 개수가 NaN/undefined/음수가 되면 구매한 씨앗이 "사라진"
      // 것처럼 보일 수 있으므로, 항상 0 이상의 정수로 되돌림
      for(const id of Object.keys(fresh.inventory)){
        const n=Number(state.inventory[id]);
        state.inventory[id]=Number.isFinite(n)&&n>0?Math.floor(n):0;
+     }
+     for(const id of Object.keys(fresh.harvestCounts)){
+       const n=Number(state.harvestCounts[id]);
+       state.harvestCounts[id]=Number.isFinite(n)&&n>0?Math.floor(n):0;
      }
    }
  }catch(error){
@@ -920,7 +1149,7 @@ ui("autoBtn").addEventListener("click",()=>{
  const h=WORLD.hotspots.reduce((a,b)=>Math.hypot(state.player.x-a.x,state.player.y-a.y)<Math.hypot(state.player.x-b.x,state.player.y-b.y)?a:b);
  startAuto(h);
 });
-ui("rankingBtn").addEventListener("click",openRankingPanel);ui("codexBtn").addEventListener("click",()=>openModal(`<h2>📖 도감</h2><div class=item><p>업무·씨앗·작물 도감이 표시되는 영역입니다.</p></div>`));ui("settingsBtn").addEventListener("click",()=>openModal(`<h2>⚙️ 설정</h2><div class=item><p>낮·밤 자동 전환과 가로 화면 고정이 적용되어 있습니다.</p></div>`));ui("notifBtn").addEventListener("click",openNotifPanel);ui("shareBtn").addEventListener("click",shareGame);ui("communityBtn").addEventListener("click",openCommunityPanel);
+ui("rankingBtn").addEventListener("click",openRankingPanel);ui("codexBtn").addEventListener("click",openCodex);ui("settingsBtn").addEventListener("click",openSettingsPanel);ui("notifBtn").addEventListener("click",openNotifPanel);ui("shareBtn").addEventListener("click",shareGame);ui("communityBtn").addEventListener("click",openCommunityPanel);
 ui("menuBtn").addEventListener("click",()=>{ui("utilityDrawer").classList.toggle("open");ui("utilityDrawer").setAttribute("aria-hidden",String(!ui("utilityDrawer").classList.contains("open")));const preview=ui("drawerMapPreview");if(preview)preview.src=isDay()?DAY:NIGHT;});ui("drawerClose").addEventListener("click",()=>ui("utilityDrawer").classList.remove("open"));ui("shopShortcut").addEventListener("click",openShop);
 ui("questCollapse").addEventListener("click",()=>ui("questPanel").classList.toggle("collapsed"));ui("claimRewardBtn").addEventListener("click",()=>{if(state.quests.every(Boolean)){state.gold+=500;state.quests=[false,false,false,false];save();toast("일일 보상 +500G")}else toast("모든 미션을 완료하세요.")});ui("modalClose").addEventListener("click",closeModal);ui("modal").addEventListener("click",e=>{if(e.target===ui("modal"))closeModal()});
 ui("startBtn").addEventListener("click",async()=>{state.character=selected;started=true;ui("characterSelect").classList.remove("show");await KOMSCO.Orientation.lockLandscape();save();if(!state.tutorialDone)showTutorial();else{checkDailyAttendance();toast(`${CHARS[selected].name}과 함께 시작합니다.`)}});
@@ -1012,6 +1241,19 @@ function recalcLevel(){
 }
 /* ===================== 출석체크 (매일 재접속 유인) ===================== */
 function todayStr(){const d=new Date();return`${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`}
+/* ===================== 주간 특가 작물 (서버 없이 날짜 기반 결정 -- 모든 플레이어가 동일하게 봄) ===================== */
+function getIsoWeekNumber(){
+ const now=new Date();
+ const d=new Date(Date.UTC(now.getFullYear(),now.getMonth(),now.getDate()));
+ d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));
+ const yearStart=new Date(Date.UTC(d.getUTCFullYear(),0,1));
+ return Math.ceil((((d-yearStart)/86400000)+1)/7);
+}
+function getWeeklyFeaturedSeed(){
+ const ids=Object.keys(SEEDS);
+ return ids[getIsoWeekNumber()%ids.length];
+}
+const WEEKLY_EVENT_BONUS=0.2; // 이번 주 특가 작물 수확 보상 +20%
 function checkDailyAttendance(){
  const today=todayStr();
  if(state.lastAttendanceDate===today)return; // 오늘 이미 출석함
@@ -1024,9 +1266,53 @@ function checkDailyAttendance(){
  state.gold+=bonus;
  save();
  flashGold();
+ const canOpenBox=state.lastMysteryBoxDate!==today;
  openModal(`<h2>📅 출석체크</h2><p>${state.attendanceStreak}일 연속 출석 중입니다!</p>
    <div class="share-link-box" style="text-align:center;font-size:22px;">🎁 +${bonus}G</div>
-   <p style="opacity:.7;font-size:12px;">매일 접속하면 7일차까지 보상이 점점 커집니다 (최대 700G, 이후 다시 순환).</p>`);
+   <p style="opacity:.7;font-size:12px;">매일 접속하면 7일차까지 보상이 점점 커집니다 (최대 700G, 이후 다시 순환).</p>
+   ${canOpenBox?'<button type="button" id="mysteryBoxBtn" class="ai-advisor-btn">🎁 오늘의 미스터리 상자 열기</button>':""}`);
+ if(canOpenBox)document.getElementById("mysteryBoxBtn").addEventListener("click",openMysteryBox);
+}
+// 확률형 보상 손맛 강화: 매일 1회 무료 미스터리 상자 (60% 소액/25% 중간/10% 무료 씨앗/5% 대박)
+function openMysteryBox(){
+ const today=todayStr();
+ if(state.lastMysteryBoxDate===today)return;
+ state.lastMysteryBoxDate=today;
+ const roll=Math.random();
+ let resultHtml,resultToast;
+ if(roll<0.05){ // 5% 대박
+   const bonus=1000;
+   state.gold+=bonus;
+   playSfx("jackpot");
+   resultHtml=`🎉<br>대박!<br><b>+${bonus}G</b>`;
+   resultToast=`🎉 미스터리 상자 대박! +${bonus}G`;
+ }else if(roll<0.15){ // 10% 무료 씨앗
+   const unlocked=Object.entries(SEEDS).filter(([id,s])=>state.level>=s.unlock);
+   const[id,s]=unlocked[Math.floor(Math.random()*unlocked.length)];
+   state.inventory[id]=(state.inventory[id]||0)+1;
+   playSfx("badge");
+   resultHtml=`${s.emoji}<br>무료 씨앗!<br><b>${s.name} 1개</b>`;
+   resultToast=`${s.emoji} 미스터리 상자에서 ${s.name} 씨앗을 받았습니다!`;
+ }else if(roll<0.4){ // 25% 중간 보상
+   const bonus=200+Math.round(Math.random()*200);
+   state.gold+=bonus;
+   playSfx("badge");
+   resultHtml=`💰<br>행운!<br><b>+${bonus}G</b>`;
+   resultToast=`💰 미스터리 상자에서 +${bonus}G를 받았습니다!`;
+ }else{ // 60% 소액
+   const bonus=50+Math.round(Math.random()*80);
+   state.gold+=bonus;
+   resultHtml=`🎁<br><b>+${bonus}G</b>`;
+   resultToast=`🎁 미스터리 상자에서 +${bonus}G를 받았습니다!`;
+ }
+ save();
+ flashGold();
+ const el=document.createElement("div");
+ el.className="jackpot-flash";
+ el.innerHTML=`<div class="jackpot-card">${resultHtml}</div>`;
+ document.body.appendChild(el);
+ setTimeout(()=>{el.remove();toast(resultToast)},1400);
+ closeModal();
 }
 const NOTIF_KEY="komscoNotifV1",MAIL_KEY="komscoMailV1";
 function loadList(key){try{return JSON.parse(localStorage.getItem(key)||"[]")}catch{return[]}}
@@ -1037,6 +1323,7 @@ function pushNotification(title,body){
  saveList(NOTIF_KEY,list.slice(0,40));
  updateNotifBadge();
  playSfx("notify");
+ showBrowserNotification(title,body);
 }
 function grantMail(title,body,gold){
  const list=loadList(MAIL_KEY);
@@ -1092,7 +1379,7 @@ async function doLogin(email,nickname){
    if(!data.ok){toast(data.error||"로그인에 실패했습니다.");return false}
    setAccount(data.user);
    startHeartbeat();
-   toast(`${data.user.nickname}님, 환영합니다!`);
+   toast(`${escapeHtml(data.user.nickname)}님, 환영합니다!`);
    return true;
  }catch{
    toast("서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
@@ -1117,6 +1404,12 @@ async function sendHeartbeat(){
      return;
    }
    if(data.ok&&Array.isArray(data.unreadDms))checkDmNotifications(data.unreadDms);
+   if(data.ok&&Array.isArray(data.cheersReceived)&&data.cheersReceived.length){
+     data.cheersReceived.forEach(c=>{
+       grantMail("🎉 친구 응원 도착!",`${c.senderNickname||"친구"}님이 응원을 보냈습니다.`,80);
+       pushNotification("친구 응원",`${c.senderNickname||"친구"}님이 응원을 보내주셨어요! 우편함에서 확인하세요.`);
+     });
+   }
  }catch{} // 네트워크 문제로 하트비트가 실패해도 게임 플레이에는 영향 없음
  submitRanking(); // 같은 20초 주기에 랭킹 점수도 함께 갱신
 }
@@ -1145,7 +1438,7 @@ async function openRankingPanel(){
    if(!box)return;
    const list=data.ok?data.ranking:[];
    if(!list.length){box.innerHTML="<p style='opacity:.7;'>아직 랭킹 데이터가 없습니다.</p>";return}
-   box.innerHTML="<div class='shop-grid'>"+list.map((r,i)=>`<article class="item"><p>${i+1}위 · ${r.nickname||"조폐 히어로"}${r.user_id===acc.id?" (나)":""}</p><p style="opacity:.75;font-size:12px;">Lv.${r.level} · ${Number(r.score).toLocaleString()}점</p></article>`).join("")+"</div>";
+   box.innerHTML="<div class='shop-grid'>"+list.map((r,i)=>`<article class="item"><p>${i+1}위 · ${escapeHtml(r.nickname||"조폐 히어로")}${r.user_id===acc.id?" (나)":""}</p><p style="opacity:.75;font-size:12px;">Lv.${r.level} · ${Number(r.score).toLocaleString()}점</p></article>`).join("")+"</div>";
  }catch{
    const box=document.getElementById("rankingListBox");
    if(box)box.innerHTML="<p style='opacity:.7;'>랭킹을 불러오지 못했습니다.</p>";
@@ -1189,15 +1482,34 @@ function userRowHtml(u){
  const online=u.is_online===undefined?true:Boolean(u.is_online); // 접속자 목록에서 온 경우 이미 온라인임이 자명
  const favorited=myFavoriteIds.has(u.id);
  const levelHtml=(u.level!=null)?`<span style="opacity:.7;font-size:12px;"> · Lv.${u.level}</span>`:"";
- return `<article class="item"><p>${online?"🟢":"⚫"} ${u.nickname}${levelHtml}</p>
+ const cheeredToday=state.lastCheerSentDate[u.id]===todayStr();
+ return `<article class="item"><p>${online?"🟢":"⚫"} ${escapeHtml(u.nickname)}${levelHtml}</p>
    <div style="display:flex;gap:6px;">
      <button type="button" data-fav-user="${u.id}">${favorited?"⭐":"☆"}</button>
-     <button type="button" data-dm-user="${u.id}" data-dm-nick="${u.nickname}">✉️</button>
+     <button type="button" data-dm-user="${u.id}" data-dm-nick="${escapeHtml(u.nickname)}">✉️</button>
+     <button type="button" data-cheer-user="${u.id}" data-cheer-nick="${escapeHtml(u.nickname)}" ${cheeredToday?"disabled":""}>${cheeredToday?"✅":"🎉"}</button>
    </div></article>`;
 }
 function wireUserRows(container){
  container.querySelectorAll("[data-fav-user]").forEach(b=>b.addEventListener("click",()=>toggleFavorite(b.dataset.favUser)));
  container.querySelectorAll("[data-dm-user]").forEach(b=>b.addEventListener("click",()=>openDmThread(b.dataset.dmUser,b.dataset.dmNick)));
+ container.querySelectorAll("[data-cheer-user]:not(:disabled)").forEach(b=>b.addEventListener("click",()=>sendCheer(b.dataset.cheerUser,b.dataset.cheerNick)));
+}
+// 친구 응원하기: 하루 1명당 1회, 보내는 사람에게 소액 보상 + 받는 사람에게는 다음 하트비트에서 우편 전달
+async function sendCheer(targetId,targetNick){
+ const acc=getAccount();
+ if(!acc){toast("로그인이 필요합니다.");return}
+ try{
+   const res=await fetch("./api/cheer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({senderId:acc.id,recipientId:targetId})});
+   const data=await res.json();
+   if(!data.ok){toast(data.error||"응원에 실패했습니다.");return}
+   state.lastCheerSentDate[targetId]=todayStr();
+   state.gold+=50;
+   save();
+   flashGold();
+   toast(`🎉 ${targetNick}님을 응원했습니다! +50G`);
+   if(communityActiveTab==="online")await renderOnlineTab();else await renderContactsTab();
+ }catch{toast("응원에 실패했습니다. 다시 시도해주세요.")}
 }
 let communityActiveTab="online";
 async function openCommunityPanel(tab){
@@ -1218,7 +1530,7 @@ async function openCommunityPanel(tab){
  }
  communityActiveTab=tab||communityActiveTab||"online";
  await refreshFavoriteIds();
- openModal(`<h2>👥 커뮤니티</h2><p>${acc.nickname}님으로 로그인됨</p>
+ openModal(`<h2>👥 커뮤니티</h2><p>${escapeHtml(acc.nickname)}님으로 로그인됨</p>
    <div class="community-tabs">
      <button type="button" class="community-tab ${communityActiveTab==="online"?"active":""}" data-ctab="online">🟢 접속자</button>
      <button type="button" class="community-tab ${communityActiveTab==="contacts"?"active":""}" data-ctab="contacts">👥 연락처</button>
@@ -1303,7 +1615,7 @@ function checkDmNotifications(unreadDms){
    next[u.senderId]=u.count;
    if(u.count>(prev[u.senderId]||0)){
      hasNew=true;
-     pushDmNotification(u.senderId,u.nickname);
+     pushDmNotification(u.senderId,escapeHtml(u.nickname));
    }
  }
  saveDmUnreadTrack(next);
@@ -1321,7 +1633,7 @@ async function openDmThread(otherId,otherNickname){
  const acc=getAccount();
  if(!acc){toast("로그인이 필요합니다.");return}
  stopBellRing(); // 이 상대와의 대화창을 열면(알림 벨을 거치지 않고 접속자 목록의 ✉️로 바로 열어도) 벨 깜빡임을 끔
- openModal(`<h2>💬 ${otherNickname}</h2><div id="dmThreadBox" class="dm-thread"><p style="opacity:.6;">불러오는 중...</p></div>
+ openModal(`<h2>💬 ${escapeHtml(otherNickname)}</h2><div id="dmThreadBox" class="dm-thread"><p style="opacity:.6;">불러오는 중...</p></div>
    <div class="dm-input-row"><input type="text" id="dmInput" placeholder="메시지를 입력하세요" maxlength="1000"><button type="button" id="dmSendBtn">전송</button></div>`);
  // 대화창을 열면 이 상대에게서 온 안 읽은 쪽지를 자동으로 읽음 처리
  try{await fetch("./api/dm/read",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({userId:acc.id,otherId})})}catch{}
@@ -1361,7 +1673,7 @@ async function renderDmThread(myId,otherId){
  }).join("");
  box.scrollTop=box.scrollHeight;
 }
-function escapeHtml(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML}
+function escapeHtml(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML.replace(/"/g,"&quot;").replace(/'/g,"&#39;")}
 
 /* ===================== 게임 공유하기 (2D 버전 getSharePayload 참고) ===================== */
 function getSharePayload(){
@@ -1449,6 +1761,8 @@ function claimShareRewardOnce(){
    updateUI();resize();updateNotifBadge();if(getAccount())startHeartbeat();
    fetchWeather();
    setInterval(fetchWeather,15*60*1000);
+   syncTimeOffset();
+   setInterval(syncTimeOffset,5*60*1000);
    ui("loading").classList.remove("show");
    ui("characterSelect").classList.add("show");
    requestAnimationFrame(loop);
