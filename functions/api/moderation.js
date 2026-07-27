@@ -1,4 +1,4 @@
-import { runChat } from "./_ai.js";
+import { runChat } from "./ai.js";
 
 // 빠른 1차 필터: 흔한 욕설/혐오표현을 즉시 차단 (AI 호출 없이 항상 적용됨)
 const BANNED_KEYWORDS = [
