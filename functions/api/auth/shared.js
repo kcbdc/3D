@@ -1,5 +1,5 @@
 import { requireDB } from "../db.js";
-import { moderateText } from "../_moderation.js";
+import { moderateText } from "../moderation.js";
 
 // 소셜 로그인 사용자를 찾거나 새로 만들고, 프론트엔드가 곧바로 교환해갈 1회용 로그인
 // 토큰을 발급합니다. URL에 사용자 ID를 그대로 노출하지 않기 위한 장치입니다.
