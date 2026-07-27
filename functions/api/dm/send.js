@@ -1,5 +1,5 @@
 import { requireDB, json } from "../db.js";
-import { moderateText } from "../_moderation.js";
+import { moderateText } from "../moderation.js";
 
 export async function onRequestPost({ request, env }) {
   try {
