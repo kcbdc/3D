@@ -1,0 +1,29 @@
+{
+  "version": "2026.07.25-community-color-audit-v49",
+  "changes": {
+    "community_button_login_indicator": "Confirmed there was genuinely no login-state styling before this fix. Added a .logged-in CSS class (green glow instead of default gray) toggled on login, logout, and page load for returning logged-in players."
+  },
+  "audit_findings": {
+    "migration_completeness": "Cross-checked every newState() field against load()'s migration logic. All 9 nested objects introduced across v37-v48 were already correctly deep-merged, no gaps found.",
+    "duplicate_functions": "Scanned for any function declared more than once -- none found.",
+    "event_listener_leaks": "Reviewed all top-level listeners -- all module-scope, executed once per page load. Dynamic panel listeners attach to freshly-rendered modal content replaced via innerHTML each render, no leak risk.",
+    "gold_underflow": "Verified every gold-deduction path (car collision, threat penalty) clamps to never go negative.",
+    "prestige_correctness": "Confirmed doPrestige resets exactly the intended fields while preserving upgrades, codex/achievement progress, and lifetime stats.",
+    "crash_risk_fixed_1": "CHARS[state.character] was read in many places with no existence check -- an unrecognized character value in corrupted save data would crash the whole game. Added a fallback in load() resetting to a valid default.",
+    "crash_risk_fixed_2": "SEEDS[f.seed] was read directly in drawCrops/openFarm with no existence check. A farm plot referencing a nonexistent seed ID would throw every frame in the render loop. Fixed: plotGrowth() now detects and safely clears such a plot, and the two remaining direct lookups use optional chaining with a fallback emoji for any caller still holding a stale reference from before the clear."
+  },
+  "verification": {
+    "syntax": "node --check passes.",
+    "community_button_tested": "Confirmed via mocked login: no class before login, gains it after login, loses it after logout.",
+    "crash_fix_tested": "Injected a farm plot with a deliberately unrecognized seed ID and let several frames render -- confirmed zero page errors and the plot was auto-cleared instead of staying broken.",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity, stuck-at-node escape test, speed-equalization test, and standard headless-browser playthrough all pass with only expected harmless local-sandbox errors."
+  },
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}

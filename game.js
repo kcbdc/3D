@@ -206,7 +206,7 @@ function drawCrops(){
     const p=w2s(pos[0],pos[1]);
     const {growth}=plotGrowth(i);
     const size=(24+growth*10)*0.97*0.7; // 기존 3% 축소에 이어 추가로 30% 축소
-    const stageEmoji=growth>=1?SEEDS[f.seed].emoji:growth<0.34?"🌱":growth<0.7?"🌿":SEEDS[f.seed].emoji;
+    const stageEmoji=growth>=1?(SEEDS[f.seed]?.emoji||"🌱"):growth<0.34?"🌱":growth<0.7?"🌿":(SEEDS[f.seed]?.emoji||"🌱");
     // 새싹 단계부터 눈에 잘 띄도록, 모든 성장 단계에서 부드러운 원형 배경(halo)을 밭 중심(땅
     // 높이)에 먼저 깔아줌
     ctx.save();
@@ -778,6 +778,11 @@ function flashGold(){const el=ui("goldText");if(!el)return;el.classList.remove("
 function plotGrowth(i){
  const f=state.farm[i];
  if(!f||!f.seed)return{growth:0,left:0,ready:false};
+ if(!SEEDS[f.seed]){ // 존재하지 않는(예: 미래에 이름이 바뀌거나 삭제된) 씨앗 ID를 참조하면 매 프레임 크래시로 이어지므로, 해당 밭을 안전하게 비움
+   state.farm[i]={seed:null,plantedAt:0,growMs:0};
+   save();
+   return{growth:0,left:0,ready:false};
+ }
  const growMs=Number(f.growMs),plantedAt=Number(f.plantedAt),now=gameNow();
  // 방어적 검증: growMs/plantedAt이 어떤 이유로든 손상되면(NaN, 0 이하, 미래 시각 등)
  // "심자마자 수확 가능"처럼 안전하지 않은 쪽으로 판단하지 않고, 항상 미완료로 처리하며
@@ -793,7 +798,7 @@ function plotGrowth(i){
  const left=Math.max(0,growMs-elapsed);
  return{growth,left,ready:left<=0};
 }
-function openFarm(){let html="<h2>🌿 주말농장</h2><p>각 밭을 선택해 씨앗을 심고 성장 후 수확하세요.</p><div class='farm-grid'>";state.farm.forEach((f,i)=>{if(!f.seed)html+=`<article class=item><h3>밭 ${i+1}</h3><button data-plot="${i}">씨앗 심기</button></article>`;else{const{growth,left,ready}=plotGrowth(i);const stageEmoji=growth>=1?SEEDS[f.seed].emoji:growth<0.34?"🌱":growth<0.7?"🌿":SEEDS[f.seed].emoji;html+=`<article class=item><h3>${stageEmoji} 밭 ${i+1}</h3><div class="farm-progress"><div class="farm-progress-bar" style="width:${Math.round(growth*100)}%"></div></div><p>${ready?"수확 가능":Math.ceil(left/1000).toLocaleString()+"초"}</p><button data-plot="${i}">${ready?"수확":"확인"}</button></article>`}});html+="</div>";openModal(html);document.querySelectorAll("[data-plot]").forEach(b=>b.addEventListener("click",()=>usePlot(+b.dataset.plot)))}
+function openFarm(){let html="<h2>🌿 주말농장</h2><p>각 밭을 선택해 씨앗을 심고 성장 후 수확하세요.</p><div class='farm-grid'>";state.farm.forEach((f,i)=>{if(!f.seed)html+=`<article class=item><h3>밭 ${i+1}</h3><button data-plot="${i}">씨앗 심기</button></article>`;else{const{growth,left,ready}=plotGrowth(i);const stageEmoji=growth>=1?(SEEDS[f.seed]?.emoji||"🌱"):growth<0.34?"🌱":growth<0.7?"🌿":(SEEDS[f.seed]?.emoji||"🌱");html+=`<article class=item><h3>${stageEmoji} 밭 ${i+1}</h3><div class="farm-progress"><div class="farm-progress-bar" style="width:${Math.round(growth*100)}%"></div></div><p>${ready?"수확 가능":Math.ceil(left/1000).toLocaleString()+"초"}</p><button data-plot="${i}">${ready?"수확":"확인"}</button></article>`}});html+="</div>";openModal(html);document.querySelectorAll("[data-plot]").forEach(b=>b.addEventListener("click",()=>usePlot(+b.dataset.plot)))}
 function usePlot(i){const f=state.farm[i];if(!f.seed){let html="<h2>심을 씨앗 선택</h2><div class='shop-grid'>";Object.entries(SEEDS).forEach(([id,s])=>{const owned=state.inventory[id]||0;html+=`<article class="item"><h3>${s.emoji} ${s.name}</h3><p style="opacity:.75;font-size:12px;margin:2px 0;">보유 ${owned}개</p><button type="button" data-plant="${id}" ${owned<=0?"disabled":""}>${owned<=0?"미보유":"심기"}</button></article>`});html+="</div>";openModal(html);document.querySelectorAll("[data-plant]:not(:disabled)").forEach(b=>b.addEventListener("click",()=>plant(i,b.dataset.plant)));return}if(!plotGrowth(i).ready){toast("아직 성장 중입니다.");return}harvestPlot(i);openFarm()}
 function harvestPlot(i){
  const f=state.farm[i];
@@ -1082,6 +1087,7 @@ function load(){
  if(!state.player||!Number.isFinite(state.player.x)||!Number.isFinite(state.player.y)){
    state=SYS.newState();
  }
+ if(!CHARS[state.character])state.character="hunmin"; // 손상된 저장 데이터로 유효하지 않은 캐릭터가 저장되어 있으면 전체 크래시로 이어질 수 있어 방어
  const q=PATH.nearestRoad(WORLD,state.player.x,state.player.y);
  state.player.x=q.x;
  state.player.y=q.y;
@@ -1381,6 +1387,7 @@ async function doLogin(email,nickname){
    if(!data.ok){toast(data.error||"로그인에 실패했습니다.");return false}
    setAccount(data.user);
    startHeartbeat();
+   updateCommunityBtnStyle();
    toast(`${escapeHtml(data.user.nickname)}님, 환영합니다!`);
    return true;
  }catch{
@@ -1391,7 +1398,12 @@ async function doLogin(email,nickname){
 function doLogout(){
  clearAccount();
  if(heartbeatTimer){clearInterval(heartbeatTimer);heartbeatTimer=null}
+ updateCommunityBtnStyle();
  toast("로그아웃되었습니다.");
+}
+function updateCommunityBtnStyle(){
+ const btn=ui("communityBtn");
+ if(btn)btn.classList.toggle("logged-in",Boolean(getAccount()));
 }
 async function sendHeartbeat(){
  const acc=getAccount();
@@ -1768,7 +1780,7 @@ function claimShareRewardOnce(){
    if(!bgDay&&!bgNight)throw new Error("낮·밤 배경 이미지를 찾을 수 없습니다.");
    const fallbackChar=Object.values(images).find(Boolean);
    for(const id of Object.keys(CHARS))if(!images[id])images[id]=fallbackChar;
-   updateUI();resize();updateNotifBadge();if(getAccount())startHeartbeat();
+   updateUI();resize();updateNotifBadge();if(getAccount())startHeartbeat();updateCommunityBtnStyle();
    fetchWeather();
    setInterval(fetchWeather,15*60*1000);
    syncTimeOffset();
