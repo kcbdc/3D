@@ -1,4 +1,5 @@
 import { requireDB, json } from "../db.js";
+import { moderateText } from "../_moderation.js";
 
 export async function onRequestPost({ request, env }) {
   try {
@@ -16,6 +17,11 @@ export async function onRequestPost({ request, env }) {
     }
     if (text.length > 1000) {
       return json({ ok: false, error: "메시지가 너무 깁니다." }, { status: 400 });
+    }
+
+    const modResult = await moderateText(env, text);
+    if (modResult.blocked) {
+      return json({ ok: false, error: `메시지를 보낼 수 없습니다: ${modResult.reason}` }, { status: 400 });
     }
 
     const id = crypto.randomUUID();

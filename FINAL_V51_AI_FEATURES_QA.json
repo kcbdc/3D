@@ -1,0 +1,23 @@
+{
+  "version": "2026.07.25-ai-features-v51",
+  "context": "Implementation of all 3 AI-consulting recommendations using Cloudflare Workers AI: real AI advisor, content moderation, AI mission generation.",
+  "shared_infra": "functions/api/_ai.js mirrors the existing db.js pattern (requireAI, runChat) and always returns null on any failure so every caller must handle a fallback.",
+  "feature_1_advisor": "The previously fake rule-based AI advisor now calls a real Cloudflare Workers AI model via functions/api/ai-advisor.js, instructed to hint without stating the answer directly. Falls back to the exact previous rule-based hint if the API call fails.",
+  "feature_2_moderation": "functions/api/_moderation.js: fast keyword blocklist (always enforced) plus an AI secondary check that fails open on error. Applied to nickname setting on all 4 login paths (email + Kakao/Naver/Google) and to DM message sending. This closes a real gap -- there was no moderation anywhere before.",
+  "feature_3_mission_generation": "functions/api/admin/generate-missions.js (secret-protected) generates new missions via structured-JSON prompting, validated and stored in a new ai_missions table. functions/api/missions.js lets the client fetch them. doWork() merges them with the static pool (1.5s timeout, never delays opening the mission screen). Also added escapeHtml() to mission rendering as a defensive fix found during this work.",
+  "action_required": "Add an 'AI' binding in Cloudflare Pages Functions settings. Add an ADMIN_SECRET env var to use mission generation (POST /api/admin/generate-missions with secret/node/count). Re-apply schema.sql (new ai_missions table).",
+  "verification": {
+    "syntax": "node --check passes on game.js and all 6 new/modified backend files.",
+    "ai_mission_merge_tested": "Mocked the missions API, forced the cycle index to land on the AI mission, confirmed it rendered correctly.",
+    "fallback_tested": "With the API genuinely failing (404), confirmed the mission modal still opened with the static pool, no errors, no hang.",
+    "regression_suite": "Graph integrity, stuck-node escape, speed equalization, and standard playthrough all pass."
+  },
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}

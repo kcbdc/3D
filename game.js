@@ -589,12 +589,29 @@ function startAuto(h){
  toast(`${h.label} 경로 안내를 시작합니다.`);
 }
 function interact(){const h=getNear();if(!h){toast("상호작용 원 안으로 이동하세요.");return}if(h.type==="work")doWork(h);if(h.type==="shop")openShop();if(h.type==="farm")openFarm()}
-function doWork(h){
+async function doWork(h){
  const threat=state.institutionThreats[h.node];
  if(threat&&gameNow()<threat.expiresAt){openThreatResponse(h,threat);return}
- const pool=SYS.missionPool[h.node];
- if(pool&&pool.length){openMission(h,pool);return}
+ const staticPool=SYS.missionPool[h.node];
+ if(staticPool&&staticPool.length){
+   const aiMissions=await fetchAiMissions(h.node);
+   const pool=aiMissions.length?[...staticPool,...aiMissions]:staticPool;
+   openMission(h,pool);
+   return;
+ }
  const reward=Math.round(h.reward*CHARS[state.character].reward);state.gold+=reward;recalcLevel();state.quests[0]=true;save();toast(`${h.label} 업무 완료 · +${reward.toLocaleString()}G`)
+}
+// AI(Cloudflare Workers AI)로 생성된 미션을 정적 미션 풀에 섞어서 콘텐츠를 늘림.
+// 관리자가 아직 그 기관에 미션을 생성해두지 않았으면 빈 배열을 반환해 조용히 정적 풀만 사용.
+async function fetchAiMissions(node){
+ try{
+   const controller=new AbortController();
+   const timeout=setTimeout(()=>controller.abort(),1500); // 응답이 느려도 미션 창이 늦게 열리지 않도록 짧게 제한
+   const res=await fetch(`./api/missions?node=${encodeURIComponent(node)}`,{signal:controller.signal});
+   clearTimeout(timeout);
+   const data=await res.json();
+   return data.ok?data.missions:[];
+ }catch{return[]}
 }
 function openThreatResponse(h,threat){
  const tt=SYS.threatTypes[threat.type];
@@ -735,8 +752,8 @@ function openMission(h,pool){
  // 정답이 항상 데이터의 첫 번째 항목으로 고정되어 있어 매번 1번만 고르면 통과되는 문제가
  // 있었음 -- 표시할 때마다 옵션 순서를 랜덤으로 섞어서 정답 위치가 매번 바뀌도록 함
  const shuffled=shuffleArray(m.options);
- let html=`<h2>📋 ${h.label} · 구매 미션</h2><p>${m.title}</p><p style="opacity:.75;font-size:13px;">${m.spec}</p><div class="shop-grid">`;
- shuffled.forEach((o,i)=>{html+=`<article class="item mission-opt"><p class="mission-opt-text">${o.text}</p><p class="mission-opt-price">${o.price.toLocaleString()}원</p><button type="button" data-opt="${i}">이 업체 선택</button></article>`});
+ let html=`<h2>📋 ${h.label} · 구매 미션</h2><p>${escapeHtml(m.title)}</p><p style="opacity:.75;font-size:13px;">${escapeHtml(m.spec)}</p><div class="shop-grid">`;
+ shuffled.forEach((o,i)=>{html+=`<article class="item mission-opt"><p class="mission-opt-text">${escapeHtml(o.text)}</p><p class="mission-opt-price">${Number(o.price).toLocaleString()}원</p><button type="button" data-opt="${i}">이 업체 선택</button></article>`});
  html+=`</div><button type="button" id="ai-advisor-btn" class="ai-advisor-btn">🤖 AI 조달 자문관에게 물어보기</button><div id="ai-hint" class="ai-hint-box" style="display:none;"></div>`;
  openModal(html);
  document.querySelectorAll("[data-opt]").forEach(b=>b.addEventListener("click",()=>resolveMission(h,pool,idx,shuffled,+b.dataset.opt)));
@@ -761,15 +778,24 @@ function resolveMission(h,pool,idx,shuffledOptions,optIdx){
  }
  closeModal();
 }
-// AI 조달 자문관: 2D 버전과 동일하게, 규칙 기반 오프라인 힌트로 동작 (외부 AI 서버 없음)
-function showAiHint(m){
+// AI 조달 자문관: Cloudflare Workers AI로 실제 생성형 응답, 실패 시 규칙 기반 힌트로 폴백
+async function showAiHint(m){
  const box=document.getElementById("ai-hint");
  if(!box)return;
  box.style.display="block";
- const tip=(m.rule!=null&&SYS.ruleList[m.rule])
+ box.innerHTML=`<b>🤖 AI 조달 자문관</b><br>생각 중...`;
+ const offlineTip=(m.rule!=null&&SYS.ruleList[m.rule])
    ?`이 발주는 공공구매 12대 원칙 중 "${SYS.ruleList[m.rule]}"과 관련이 있어요. 해당 인증·서류를 보유한 업체를 찾아보세요.`
    :"견적가가 예산상한을 넘지 않는지부터 확인하고, 인증서를 보유한 업체인지 살펴보세요.";
- box.innerHTML=`<b>🤖 AI 조달 자문관</b><br>${tip}`;
+ try{
+   const res=await fetch("./api/ai-advisor",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+     title:m.title,spec:m.spec,ruleName:m.rule!=null?SYS.ruleList[m.rule]:null,options:m.options
+   })});
+   const data=await res.json();
+   box.innerHTML=`<b>🤖 AI 조달 자문관</b><br>${data.ok?escapeHtml(data.hint):escapeHtml(offlineTip)}`;
+ }catch{
+   box.innerHTML=`<b>🤖 AI 조달 자문관</b><br>${escapeHtml(offlineTip)}`;
+ }
 }
 function openShop(){const featured=getWeeklyFeaturedSeed();let html="<h2>🌱 씨앗상점</h2><p style=\"opacity:.75;font-size:12px;\">🌟 이번 주 특가 작물은 수확 보상이 20% 늘어납니다.</p><div class='shop-grid'>";for(const[id,s]of Object.entries(SEEDS)){const locked=state.level<s.unlock;const isFeatured=id===featured;html+=`<article class="item shop-item" ${isFeatured?'style="border-color:#ffd166;box-shadow:0 0 10px rgba(255,209,102,.5);"':""}><h3>${s.emoji} ${s.name}${isFeatured?" 🌟":""}</h3><p><b>${locked?`🔒 Lv.${s.unlock} 필요`:s.price.toLocaleString()+"G"}</b></p><button type="button" data-buy="${id}" ${locked?"disabled":""}>${locked?"잠김":"구매"}</button></article>`}html+="</div><h2>🛠️ 농장 도구</h2><div class='shop-grid'>";for(const[id,u]of Object.entries(SYS.upgrades)){const owned=state.upgrades[id];const locked=state.level<u.unlock;html+=`<article class="item shop-item"><h3>${u.icon} ${u.name}</h3><p>${u.desc}</p><p><b>${owned?"보유 중":locked?`🔒 Lv.${u.unlock} 필요`:u.cost.toLocaleString()+"G"}</b></p><button type="button" data-upgrade="${id}" ${owned||locked?"disabled":""}>${owned?"구매완료":locked?"잠김":"구매"}</button></article>`}html+="</div>";openModal(html);document.querySelectorAll("[data-buy]").forEach(b=>b.addEventListener("click",()=>buySeed(b.dataset.buy)));document.querySelectorAll("[data-upgrade]").forEach(b=>b.addEventListener("click",()=>buyUpgrade(b.dataset.upgrade)))}
 function buyUpgrade(id){const u=SYS.upgrades[id];if(state.level<u.unlock){toast(`레벨 ${u.unlock} 이상부터 구매할 수 있습니다.`);return}if(state.upgrades[id]){toast("이미 보유한 도구입니다.");return}if(state.gold<u.cost){toast("골드가 부족합니다.");return}state.gold-=u.cost;state.upgrades[id]=true;save();toast(`${u.icon} ${u.name} 구매 완료!`);flashGold();playSfx("buy");openShop()}
