@@ -1,4 +1,4 @@
-import { runChat } from "./_ai.js";
+import { runChat } from "./ai.js";
 import { json } from "./db.js";
 
 const SYSTEM_PROMPT =
