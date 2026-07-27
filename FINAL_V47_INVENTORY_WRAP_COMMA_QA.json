@@ -1,0 +1,20 @@
+{
+  "version": "2026.07.25-inventory-wrap-comma-v47",
+  "changes": {
+    "inventory_multi_row_wrap": "Root cause: .inventory-preview used display:flex with flex:1 on each of the 12 seed icons and no flex-wrap, forcing all 12 into one cramped row regardless of drawer width. Fixed by adding flex-wrap:wrap and sizing each item to flex:0 1 calc(25%% - 6px), wrapping into multiple rows (4 per row).",
+    "thousands_separators": "Added toLocaleString() comma formatting everywhere it was missing: top-bar seed/harvest counts, per-seed inventory counts, farm countdown seconds, codex harvest counts, ranking level, and all gold amounts across missions, harvests, patrols, weather events, codex badges, achievements, mystery box, and pet auto-harvest. Shop prices/costs (previously plain string concatenation) now also use it. Gold display, mission prices, and ranking scores already had it before this change."
+  },
+  "verification": {
+    "syntax": "node --check passes on game.js and game-systems.js.",
+    "live_test": "Set gold to 1234567, harvest to 12345, pineapple inventory to 12345; confirmed all three displayed with correct comma placement, and confirmed the 12 inventory icons now span 3 distinct rows (4 per row) instead of one line.",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity, stuck-at-node escape test, speed-equalization test, and standard headless-browser playthrough all pass with only expected harmless local-sandbox errors."
+  },
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}
