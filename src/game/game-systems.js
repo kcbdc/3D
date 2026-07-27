@@ -156,6 +156,8 @@ window.KOMSCO.GameSystems = {
       stats:{carsSurvived:0,missionsWon:0,distanceTraveled:0,lifetimeGoldEarned:0},
       achievementsClaimed:{},
       lastCheerSentDate:{},
+      missionStreak:0,
+      goldenCrop:null,
       notifPermissionAsked:false
     };
   }
