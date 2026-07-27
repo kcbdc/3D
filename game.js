@@ -1135,6 +1135,8 @@ if(window.visualViewport){
   visualViewport.addEventListener("scroll",resize);
 }
 addEventListener("keydown",e=>{
+  const typingInField=e.target&&(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA");
+  if(typingInField)return; // 로그인/검색/채팅 등 입력창에 타이핑 중일 땐 게임 단축키(이동, 상호작용)를 막음
   keys[e.key]=true;
   if(MOVE_KEYS.has(e.key)&&autoPath.length){autoPath=[];currentEdge=null;setAutoActive(false)}
   if(e.key==="e"||e.key==="Enter")interact()
@@ -1516,16 +1518,24 @@ async function openCommunityPanel(tab){
  const acc=getAccount();
  if(!acc){
    openModal(`<h2>👥 커뮤니티</h2><p>커뮤니티 기능을 사용하려면 먼저 로그인해주세요.</p>
-     <div class="item"><input type="email" id="loginEmail" placeholder="이메일" style="width:100%;margin-bottom:8px;padding:8px;border-radius:8px;border:1px solid #4b9fe455;background:#0e2038;color:#fff;">
-     <input type="text" id="loginNickname" placeholder="닉네임 (선택)" style="width:100%;margin-bottom:8px;padding:8px;border-radius:8px;border:1px solid #4b9fe455;background:#0e2038;color:#fff;">
+     <div class="item"><input type="email" id="loginEmail" placeholder="이메일" enterkeyhint="next" style="width:100%;margin-bottom:8px;padding:8px;border-radius:8px;border:1px solid #4b9fe455;background:#0e2038;color:#fff;">
+     <input type="text" id="loginNickname" placeholder="닉네임 (선택)" enterkeyhint="done" style="width:100%;margin-bottom:8px;padding:8px;border-radius:8px;border:1px solid #4b9fe455;background:#0e2038;color:#fff;">
      <button type="button" id="loginSubmitBtn" class="ai-advisor-btn">로그인 / 가입</button></div>`);
-   document.getElementById("loginSubmitBtn").addEventListener("click",async()=>{
+   const submitLogin=async()=>{
      const email=document.getElementById("loginEmail").value.trim();
      const nickname=document.getElementById("loginNickname").value.trim()||"조폐 히어로";
      if(!email){toast("이메일을 입력해주세요.");return}
      const success=await doLogin(email,nickname);
      if(success)openCommunityPanel();
-   });
+   };
+   document.getElementById("loginSubmitBtn").addEventListener("click",submitLogin);
+   // 화면 아래를 자판이 가려서 다음 입력칸/버튼에 손이 안 닿는 문제 대응: 자판의
+   // 다음/완료 키만으로 이메일→닉네임→로그인까지 끝낼 수 있도록 함
+   const emailInput=document.getElementById("loginEmail");
+   const nicknameInput=document.getElementById("loginNickname");
+   emailInput.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();nicknameInput.focus()}});
+   nicknameInput.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();submitLogin()}});
+   emailInput.focus();
    return;
  }
  communityActiveTab=tab||communityActiveTab||"online";

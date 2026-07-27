@@ -1,0 +1,22 @@
+{
+  "version": "2026.07.25-keyboard-login-fix-v48",
+  "context": "User reported the mobile on-screen keyboard covers the lower half of the rotated UI, making it impossible to reach the nickname field or login button after typing an email.",
+  "root_cause_found": "Beyond the visual coverage, there was a real functional bug: a global keydown handler called interact() on every Enter keypress with no check for whether the user was typing in a text input. Pressing Enter while filling the login form also triggered a game interaction, disrupting the open modal.",
+  "fix": {
+    "keyboard_chaining": "Email field auto-focuses on modal open, has enterkeyhint=next, Enter moves focus to nickname. Nickname field has enterkeyhint=done, Enter submits login directly. The whole flow completes via the keyboard's own next/done key without needing to see or tap anything hidden behind it.",
+    "global_keydown_guard": "The global keydown handler now skips all game-key handling when the event target is an INPUT or TEXTAREA, fixing this for every text field in the game (login, DM chat, user search), not just login."
+  },
+  "verification": {
+    "syntax": "node --check passes.",
+    "keyboard_only_flow_tested": "Simulated the full real-world sequence (auto-focus, type+Enter chains to nickname, type+Enter submits login) and confirmed the account was stored without a single button click.",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity, stuck-at-node escape test, speed-equalization test, and standard headless-browser playthrough all pass with only expected harmless local-sandbox errors."
+  },
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}
