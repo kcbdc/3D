@@ -1405,6 +1405,27 @@ function updateCommunityBtnStyle(){
  const btn=ui("communityBtn");
  if(btn)btn.classList.toggle("logged-in",Boolean(getAccount()));
 }
+// 소셜로그인 콜백에서 돌아왔을 때(?logintoken=... 또는 ?loginerror=...) 처리
+async function handleSocialLoginReturn(){
+ const params=new URLSearchParams(location.search);
+ const token=params.get("logintoken");
+ const loginError=params.get("loginerror");
+ if(!token&&!loginError)return;
+ history.replaceState(null,"",location.pathname); // 토큰이 주소창/방문기록에 남지 않도록 즉시 정리
+ if(loginError){toast(loginError);return}
+ try{
+   const res=await fetch("./api/auth/exchange",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token})});
+   const data=await res.json();
+   if(!data.ok){toast(data.error||"로그인에 실패했습니다.");return}
+   setAccount(data.user);
+   startHeartbeat();
+   updateCommunityBtnStyle();
+   toast(`${escapeHtml(data.user.nickname)}님, 환영합니다!`);
+   openCommunityPanel();
+ }catch{
+   toast("로그인 처리 중 서버에 연결할 수 없습니다.");
+ }
+}
 async function sendHeartbeat(){
  const acc=getAccount();
  if(!acc)return;
@@ -1530,24 +1551,11 @@ async function openCommunityPanel(tab){
  const acc=getAccount();
  if(!acc){
    openModal(`<h2>👥 커뮤니티</h2><p>커뮤니티 기능을 사용하려면 먼저 로그인해주세요.</p>
-     <div class="item"><input type="email" id="loginEmail" placeholder="이메일" enterkeyhint="next" style="width:100%;margin-bottom:8px;padding:8px;border-radius:8px;border:1px solid #4b9fe455;background:#0e2038;color:#fff;">
-     <input type="text" id="loginNickname" placeholder="닉네임 (선택)" enterkeyhint="done" style="width:100%;margin-bottom:8px;padding:8px;border-radius:8px;border:1px solid #4b9fe455;background:#0e2038;color:#fff;">
-     <button type="button" id="loginSubmitBtn" class="ai-advisor-btn">로그인 / 가입</button></div>`);
-   const submitLogin=async()=>{
-     const email=document.getElementById("loginEmail").value.trim();
-     const nickname=document.getElementById("loginNickname").value.trim()||"조폐 히어로";
-     if(!email){toast("이메일을 입력해주세요.");return}
-     const success=await doLogin(email,nickname);
-     if(success)openCommunityPanel();
-   };
-   document.getElementById("loginSubmitBtn").addEventListener("click",submitLogin);
-   // 화면 아래를 자판이 가려서 다음 입력칸/버튼에 손이 안 닿는 문제 대응: 자판의
-   // 다음/완료 키만으로 이메일→닉네임→로그인까지 끝낼 수 있도록 함
-   const emailInput=document.getElementById("loginEmail");
-   const nicknameInput=document.getElementById("loginNickname");
-   emailInput.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();nicknameInput.focus()}});
-   nicknameInput.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();submitLogin()}});
-   emailInput.focus();
+     <div class="share-grid" style="margin-top:0;">
+       <a class="share-chip" style="background:#fee500;color:#191919!important;" href="./api/auth/kakao-start">🟡 카카오로 로그인</a>
+       <a class="share-chip" style="background:#03c75a;color:#fff!important;" href="./api/auth/naver-start">🟢 네이버로 로그인</a>
+       <a class="share-chip" style="background:#fff;color:#3c4043!important;" href="./api/auth/google-start">🔵 구글로 로그인</a>
+     </div>`);
    return;
  }
  communityActiveTab=tab||communityActiveTab||"online";
@@ -1780,7 +1788,7 @@ function claimShareRewardOnce(){
    if(!bgDay&&!bgNight)throw new Error("낮·밤 배경 이미지를 찾을 수 없습니다.");
    const fallbackChar=Object.values(images).find(Boolean);
    for(const id of Object.keys(CHARS))if(!images[id])images[id]=fallbackChar;
-   updateUI();resize();updateNotifBadge();if(getAccount())startHeartbeat();updateCommunityBtnStyle();
+   updateUI();resize();updateNotifBadge();if(getAccount())startHeartbeat();updateCommunityBtnStyle();handleSocialLoginReturn();
    fetchWeather();
    setInterval(fetchWeather,15*60*1000);
    syncTimeOffset();

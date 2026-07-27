@@ -1,0 +1,28 @@
+{
+  "version": "2026.07.25-social-login-v50",
+  "context": "Replaced the email+nickname login form with Kakao, Naver, and Google social login (OAuth authorization code flow).",
+  "what_was_built": {
+    "schema_changes": "users table now has provider + provider_user_id columns (unique together) instead of unique email alone, since Kakao's basic scope doesn't reliably provide email. Old email login migrated to provider='email', provider_user_id=email as a fallback path (not shown in UI, not deleted). Added login_tokens table for short-lived single-use tokens used to hand off a completed OAuth login without putting a user ID directly in a URL.",
+    "backend_endpoints": "functions/api/auth/_shared.js (helper, not a route), kakao-start/naver-start/google-start.js (redirect to each provider's auth page using a *_CLIENT_ID env var), kakao-callback/naver-callback/google-callback.js (exchange code for token, fetch profile, upsert user, redirect back with a one-time login token), exchange.js (frontend trades the token for the account; token deleted immediately either way so it can't be reused).",
+    "frontend_changes": "Community panel's logged-out view now shows 3 branded buttons (Kakao/Naver/Google) linking to the start endpoints, replacing the email form entirely. handleSocialLoginReturn() runs on every page load, checks for ?logintoken= or ?loginerror= in the URL, exchanges the token if present, stores the account, and cleans the URL via history.replaceState."
+  },
+  "action_required_from_user": {
+    "cannot_do_myself": "OAuth app registration on Kakao Developers / Naver Developers Center / Google Cloud Console requires the user's own developer account -- I cannot do this on their behalf.",
+    "steps": "1) Register an app on each provider's console. 2) Register the exact callback URL for this deployment in each app (https://<domain>/api/auth/kakao-callback, /naver-callback, /google-callback). 3) Add the client IDs/secrets to Cloudflare Pages Settings > Environment variables using these exact names: KAKAO_CLIENT_ID, KAKAO_CLIENT_SECRET, NAVER_CLIENT_ID, NAVER_CLIENT_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET. 4) Re-apply schema.sql to D1 (users table structure changed, existing table needs drop+recreate like earlier in this conversation).",
+    "graceful_missing_config": "Each start.js endpoint checks for its client ID first and returns a clear Korean error message instead of crashing if the env var isn't set yet."
+  },
+  "verification": {
+    "syntax": "node --check passes on game.js, login.js, and all 8 new files under functions/api/auth/.",
+    "social_buttons_tested": "Confirmed all 3 branded buttons render with correct links and the old email/nickname inputs are completely gone.",
+    "callback_flow_tested": "Simulated landing back with ?logintoken=... (mocked exchange response): confirmed the account was stored, URL cleaned, and community button switched to logged-in color -- all automatically on page load.",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity, stuck-at-node escape test, speed-equalization test, and standard headless-browser playthrough all pass with only expected harmless local-sandbox errors."
+  },
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}
