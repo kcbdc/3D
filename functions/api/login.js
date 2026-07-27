@@ -14,13 +14,13 @@ export async function onRequestPost({ request, env }) {
     const userId = crypto.randomUUID();
 
     await db.prepare(`
-      INSERT INTO users(id, email, nickname)
-      VALUES(?, ?, ?)
-      ON CONFLICT(email) DO UPDATE SET nickname = excluded.nickname
-    `).bind(userId, email, nickname).run();
+      INSERT INTO users(id, provider, provider_user_id, email, nickname)
+      VALUES(?, 'email', ?, ?, ?)
+      ON CONFLICT(provider, provider_user_id) DO UPDATE SET nickname = excluded.nickname
+    `).bind(userId, email, email, nickname).run();
 
     const user = await db.prepare(
-      "SELECT id, email, nickname, created_at FROM users WHERE email = ?"
+      "SELECT id, email, nickname, created_at FROM users WHERE provider = 'email' AND provider_user_id = ?"
     ).bind(email).first();
 
     return json({ ok: true, user });
