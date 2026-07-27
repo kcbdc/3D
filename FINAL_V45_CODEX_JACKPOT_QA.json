@@ -1,0 +1,32 @@
+{
+  "version": "2026.07.25-codex-jackpot-v45",
+  "context": "Implementation of items 1 (codex/collection system) and 4 (enhanced probability-reward presentation) from the game-expert consulting review.",
+  "features": {
+    "1_codex_system": {
+      "what": "Replaced the placeholder codex button (which just showed 'this area displays a codex' text) with a real collection system. Each of the 12 seed types tracks a lifetime harvest count; reaching 1/10/100 harvests unlocks bronze/silver/gold badges with scaling gold rewards (50G/200G/1000G). Reaching gold on all 12 seeds (36 badges total) unlocks a one-time '마스터 농부' (Master Farmer) title with a 5,000G reward and a celebratory modal.",
+      "ui": "The codex panel shows all 12 seeds with their badge row (locked badges dimmed) and current harvest count, plus an overall X/36 progress count at the top."
+    },
+    "4_probability_reward_presentation": {
+      "what": "The existing clover upgrade's 15%-chance double-reward trigger previously just showed a plain toast. Now it plays a distinct ascending arpeggio sound and shows a brief full-screen celebratory card (pop-in animation with a golden glow) before fading, giving the 'jackpot' moment actual weight.",
+      "daily_mystery_box": "Added a once-per-day free mystery box, offered as a button inside the existing daily attendance popup: 60% small gold (50-130G), 25% medium gold (200-400G), 10% a free seed of a random currently-unlocked type, 5% a 1000G jackpot (using the same celebratory card animation)."
+    }
+  },
+  "migration_safety": {
+    "new_nested_state_fields": "harvestCounts and codexClaimed are new nested objects in the save data. Applied the same deep-merge + sanitization treatment used for inventory/upgrades (added after the v43 seeds-desync bug) from the start, so these can't suffer the same class of data-loss/desync issue that state.seeds had."
+  },
+  "verification": {
+    "syntax": "node --check passes on game.js and game-systems.js.",
+    "mystery_box_tested": "Live browser test confirmed the button appears in the attendance popup, clicking it grants a reward (gold increased from 400 to 640 in one run), and lastMysteryBoxDate is recorded so it can't be reopened same-day.",
+    "codex_panel_tested": "Confirmed exactly 12 seed cards render, badge state reflects actual harvestCounts (injected potato:1 correctly showed '누적 수확 1회'), and the overall progress counter showed the correct 0/36 at a fresh start.",
+    "full_real_harvest_flow_tested": "Walked to the farm, harvested an actual ready plot through the real UI (not synthetic state injection alone), and confirmed harvestCounts.potato incremented to 1 and codexClaimed.potato_0 was recorded -- the full pipeline from harvest action to badge grant works end to end.",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity, the stuck-at-node escape test, the speed-equalization test, and the standard headless-browser playthrough all pass with only the expected harmless local-sandbox errors (api/time 404 and the weather CORS block, neither of which occurs against the real deployed backend)."
+  },
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}

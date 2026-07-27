@@ -1,0 +1,32 @@
+{
+  "version": "2026.07.25-clock-drift-security-fix-v44",
+  "context": "User gave the crucial clue that instant-harvest develops over play time rather than happening immediately, and requested a full source audit.",
+  "root_cause_found": {
+    "explanation": "plant() records plantedAt using the server clock, but every subsequent readiness check compared it against the LOCAL device clock. A phone's local clock can drift or get corrected (NTP sync, timezone/DST changes) during a long session, making elapsed time look artificially larger than real wall-clock time -- matching the reported 'fine at first, breaks the more you play' pattern.",
+    "fix": "Added syncTimeOffset() (runs at startup and every 5 minutes) measuring the server-local clock difference, and a gameNow() helper applying that offset. All growth-critical timing now uses gameNow() instead of raw Date.now()."
+  },
+  "second_bug_found": {
+    "what": "farmDisturbanceTick (crow event) could push a plot's plantedAt into the future if it struck very early in growth, since the delay wasn't bounded by actual elapsed time. This would then get treated as corrupted data and silently reset to 0% growth.",
+    "fix": "The delay is now clamped to never exceed the elapsed time so far."
+  },
+  "audit_findings": {
+    "petAutoHarvestTick": "Had its own duplicate readiness check using raw Date.now(), bypassing the shared plotGrowth() validation. Fixed to use plotGrowth() consistently.",
+    "institution_threats": "Applied the same gameNow() treatment for consistency.",
+    "xss_vulnerability": "User-supplied nicknames were rendered unescaped in the ranking leaderboard, online/search/favorites/recent-conversation lists, community panel header, and DM chat windows -- a malicious nickname could execute script in other users' browsers. Fixed by escaping every nickname render site. Also found escapeHtml() itself didn't escape quote characters, leaving one attribute-context usage (data-dm-nick=\"...\") still exploitable via a quote-containing nickname; escapeHtml() now escapes quotes too."
+  },
+  "verification": {
+    "syntax": "node --check passes.",
+    "clock_drift_math": "Verified in isolation that the old unclamped delay could exceed elapsed time (pushing plantedAt into the future); confirmed the new clamp prevents this.",
+    "xss_fix": "Directly tested escapeHtml with a tag+quote payload; confirmed the fix escapes both.",
+    "no_new_errors": "Confirmed via pageerror listener that syncTimeOffset produces no exceptions even when /api/time is unavailable.",
+    "regression_suite": "Graph integrity, stuck-node escape, speed equalization, and standard playthrough all pass."
+  },
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}

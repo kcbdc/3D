@@ -1,0 +1,42 @@
+{
+  "version": "2026.07.25-contacts-search-v39",
+  "context": "Stage 3 of the staged community-feature build: search (including offline users), favorites, and a recent-conversations list, built on top of v37 (login/presence) and v38 (direct messages).",
+
+  "scope_decision_disclosed_upfront": "The visit button from the original spec was intentionally left out. This game has no actual multiplayer mechanic for viewing another player's farm/state -- it's a single-player exploration game with server-tracked presence bolted on for messaging, not a shared live world. Adding a visit button with no real destination behind it would just be a broken/fake button, so it was omitted rather than faked.",
+
+  "what_was_built": {
+    "schema": "New favorites table (user_id, favorite_user_id, created_at, composite primary key). Recent conversations don't get their own table -- they're derived directly from existing direct_messages rows.",
+    "backend": [
+      "functions/api/users/search.js -- searches ALL users by nickname, not just online ones. Returns online status, level, and favorite status.",
+      "functions/api/favorites/toggle.js -- adds or removes a favorite.",
+      "functions/api/favorites/list.js -- the current user's favorited contacts with live online status.",
+      "functions/api/dm/recent.js -- up to 20 most recent conversation partners, excluding anyone already favorited."
+    ],
+    "frontend": [
+      "Community panel now has two tabs: online users and contacts.",
+      "Contacts tab: nickname search (offline included), a favorites section pinned at the top, and a recent-conversations section below.",
+      "A shared row renderer keeps the online dot, level, star toggle, and message button consistent across every list.",
+      "The star toggle was added to the online-users list too; toggling it anywhere immediately re-renders whichever tab is currently open."
+    ]
+  },
+
+  "known_limitation_disclosed": "Level shown in search results comes from the rankings table, but nothing in this game currently writes to that table during actual play. Level will show as blank until something separately keeps rankings in sync with gameplay.",
+
+  "verification": {
+    "syntax": "node --check passes on game.js and all 4 new backend files.",
+    "search_and_favorite_flow": "Verified via a page-injected window.fetch override that the contacts tab, search, and favoriting all work correctly.",
+    "star_sync_across_tabs": "Verified that toggling a star from the online tab correctly re-renders with the filled star immediately.",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity, the stuck-at-node escape test, the speed-equalization test, and the standard headless-browser playthrough all still pass."
+  },
+
+  "deployment_note_important": "schema.sql needs to be re-applied to the project's D1 database for the new favorites table to exist.",
+
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "version": "2026.07.25-community-foundation-v37",
+  "context": "User requested a full KakaoTalk-level community system (1:1 direct messages, notification integration, contacts/search, favorites). Given the scale, agreed with the user to build this in stages, starting with the foundation: login/accounts + online presence. Direct messages, search, and favorites are NOT part of this delivery -- they depend on this foundation existing first.",
+
+  "schema_bug_found_and_fixed": {
+    "problem": "functions/api/login.js and functions/api/ranking.js already referenced a 'users' table and a 'rankings' table, but schema.sql (the only place table definitions live for this project) never defined either one -- only game_saves existed there. A fresh deploy running schema.sql would have left both of those existing API endpoints permanently broken (querying tables that don't exist).",
+    "fix": "Added CREATE TABLE IF NOT EXISTS statements for users (id, email, nickname, created_at, and a new last_seen_at column for presence) and rankings (user_id, score, level, harvest, updated_at) to schema.sql, plus an index on last_seen_at for the new online-status query."
+  },
+
+  "what_was_built": {
+    "backend": [
+      "functions/api/presence/heartbeat.js -- POST {userId}, updates users.last_seen_at to now. Called by the client every 20 seconds while logged in.",
+      "functions/api/presence/online.js -- GET, returns users whose last_seen_at is within the last 40 seconds (2x the heartbeat interval, tolerating one missed beat before considering someone offline)."
+    ],
+    "frontend": [
+      "New 👥 커뮤니티 button in the top icon bar.",
+      "Login/signup form (email + optional nickname) that calls the existing /api/login endpoint (upserts by email) and stores the returned user in localStorage.",
+      "20-second heartbeat loop, started automatically on login and also resumed automatically on page load if a stored account already exists from a previous session.",
+      "Community panel: shows the login form when logged out; shows the current nickname, a live list of other currently-online players (fetched from /api/presence/online), and a logout button when logged in.",
+      "Logout clears the stored account and stops the heartbeat loop."
+    ]
+  },
+
+  "explicitly_not_included_yet": [
+    "direct_messages table / 1:1 chat windows / read receipts",
+    "Notification bell integration for incoming messages (bell shake/badge tied to DMs)",
+    "/api/users/search, offline user search",
+    "Favorites / contacts tab / recent-conversations list",
+    "The ✉️ button next to each online user in the presence list"
+  ],
+
+  "verification": {
+    "syntax": "node --check passes on game.js and both new function files.",
+    "schema": "Reviewed for consistency with the existing login.js/ranking.js queries (column names match exactly).",
+    "frontend_flow_tested": "Could not test against a live D1 database in this sandbox (no Wrangler/D1 runtime available here), so the frontend logic was verified by overriding window.fetch from within a live browser test to simulate the backend responses. Confirmed: opening the community panel while logged out shows the login form; submitting valid credentials stores the account in localStorage and immediately shows the logged-in view with a correctly rendered list of the mocked online users; logging out clears the stored account and reopening the panel shows the login form again.",
+    "note_on_playwright_route_mocking": "Playwright's page.route() network interception did not intercept these fetch() calls in this particular sandboxed test environment (a testing-tool quirk, reproducible even with exact-URL-match patterns) -- switching to directly overriding window.fetch from page-injected JS worked reliably and is what was used for the verification above.",
+    "existing_regression_suite_rerun": "JS syntax check, road-graph integrity, the stuck-at-node escape test, the speed-equalization test, and the standard headless-browser playthrough (only the expected harmless local-CORS weather-fetch errors) all still pass."
+  },
+
+  "deployment_note_important": "This adds new D1 tables and endpoints. After deploying, schema.sql needs to be (re-)applied to the project's D1 database (via the Cloudflare dashboard's D1 console or wrangler d1 execute) for the users/rankings tables and the last_seen_at column to actually exist -- otherwise /api/login, /api/presence/heartbeat, and /api/presence/online will all return errors.",
+
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}
