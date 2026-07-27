@@ -7,7 +7,7 @@ const WORLD=KOMSCO.WORLD,PATH=KOMSCO.PathEngine,SYS=KOMSCO.GameSystems;
 const CHARS=SYS.characters,SEEDS=SYS.seeds,CHAR_BASE="./public/assets/characters/";
 const DAY="./public/assets/world/world_day.png",NIGHT="./public/assets/world/world_exact_map.png";
 const DPR=Math.min(devicePixelRatio||1, innerWidth<900?1.35:1.75);
-let W=0,H=0,bgRect={x:0,y:0,w:1,h:1},bgDay,bgNight,last=performance.now(),selected=null,started=false,autoPath=[],currentEdge=null,lastUiUpdate=0,lastPetTick=0,lastDisturbanceTick=0,lastThreatTick=0,lastCarSpawnTick=0,resizeSettleTimer=null;
+let W=0,H=0,bgRect={x:0,y:0,w:1,h:1},bgDay,bgNight,last=performance.now(),selected=null,started=false,autoPath=[],currentEdge=null,lastUiUpdate=0,lastPetTick=0,lastDisturbanceTick=0,lastThreatTick=0,lastCarSpawnTick=0,lastLuckyHourCheck=0,lastGoldenCropTick=0,resizeSettleTimer=null;
 const images={},keys={},dpad={up:false,down:false,left:false,right:false};let state=SYS.newState();
 
 const isDay=()=>{const h=new Date().getHours();return h>=5&&h<19};
@@ -244,6 +244,18 @@ function drawCrops(){
       ctx.restore();
     }
   });
+  if(state.goldenCrop&&gameNow()<state.goldenCrop.expiresAt&&plots[state.goldenCrop.plotIdx]){
+    const pos=plots[state.goldenCrop.plotIdx];
+    const p=w2s(pos[0],pos[1]);
+    const pulse=1+Math.sin(performance.now()/200)*0.15; // 눈에 띄도록 살짝 맥동하는 효과
+    ctx.save();
+    ctx.font=`${Math.round(26*pulse)}px serif`;
+    ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.shadowColor="rgba(255,209,102,1)";
+    ctx.shadowBlur=20;
+    ctx.fillText("✨🌟✨",p.x,p.y);
+    ctx.restore();
+  }
 }
 
 let petWander=null,lastPetFrameTime=0;
@@ -560,6 +572,14 @@ function update(dt){
     carSpawnTick();
     lastCarSpawnTick=now;
   }
+  if(now-lastLuckyHourCheck>20000){
+    updateLuckyHourBanner();
+    lastLuckyHourCheck=now;
+  }
+  if(now-lastGoldenCropTick>10000){
+    goldenCropTick();
+    lastGoldenCropTick=now;
+  }
 }
 
 function getNear(){
@@ -731,8 +751,16 @@ function handleCarHit(){
  state.gold-=penalty;
  save();
  playSfx("gameover");
+ shakeScreen();
  toast(`🚗 자동차와 부딪혔습니다! -${penalty.toLocaleString()}G · 다음부턴 조심하세요!`);
  pushNotification("교통사고 주의",`도로에서 자동차와 부딪혀 ${penalty.toLocaleString()}G를 잃었습니다.`);
+}
+function shakeScreen(){
+ const canvas=ui("game");
+ if(!canvas)return;
+ canvas.classList.remove("shake");
+ void canvas.offsetWidth; // 애니메이션 재시작을 위해 강제로 리플로우
+ canvas.classList.add("shake");
 }
 function shuffleArray(arr){
  const a=arr.slice();
@@ -759,20 +787,26 @@ function openMission(h,pool){
  document.querySelectorAll("[data-opt]").forEach(b=>b.addEventListener("click",()=>resolveMission(h,pool,idx,shuffled,+b.dataset.opt)));
  document.getElementById("ai-advisor-btn").addEventListener("click",()=>showAiHint(m));
 }
+const MISSION_COMBO_BONUS_PER_STREAK=0.05,MISSION_COMBO_MAX=10; // 콤보 1당 +5%, 최대 10콤보(+50%)
 function resolveMission(h,pool,idx,shuffledOptions,optIdx){
  const o=shuffledOptions[optIdx];
  if(o.correct){
-   const reward=Math.round(h.reward*CHARS[state.character].reward*(1+state.prestigeLevel*SYS.prestigeBonusPerLevel));
+   state.missionStreak=Math.min(MISSION_COMBO_MAX,state.missionStreak+1);
+   const comboMult=1+state.missionStreak*MISSION_COMBO_BONUS_PER_STREAK;
+   const reward=Math.round(h.reward*CHARS[state.character].reward*(1+state.prestigeLevel*SYS.prestigeBonusPerLevel)*comboMult*getLuckyHourMultiplier());
    state.gold+=reward;recalcLevel();state.quests[0]=true;
    state.missionIndex[h.node]=(idx+1)%pool.length;
    state.stats.missionsWon++;
    state.stats.lifetimeGoldEarned+=reward;
    save();
    playSfx("success");
-   toast(`✅ 정답! ${h.label} 업무 완료 · +${reward.toLocaleString()}G`);
+   const comboText=state.missionStreak>=2?` 🔥${state.missionStreak}콤보!`:"";
+   toast(`✅ 정답! ${h.label} 업무 완료 · +${reward.toLocaleString()}G${comboText}`);
    pushNotification("업무 완료",`${h.label}에서 미션을 성공적으로 완료했습니다. +${reward.toLocaleString()}G`);
    checkAchievements();
  }else{
+   state.missionStreak=0; // 오답이면 콤보 초기화
+   save();
    playSfx("fail");
    toast(`❌ ${o.reason}`);
  }
@@ -824,15 +858,46 @@ function plotGrowth(i){
  const left=Math.max(0,growMs-elapsed);
  return{growth,left,ready:left<=0};
 }
-function openFarm(){let html="<h2>🌿 주말농장</h2><p>각 밭을 선택해 씨앗을 심고 성장 후 수확하세요.</p><div class='farm-grid'>";state.farm.forEach((f,i)=>{if(!f.seed)html+=`<article class=item><h3>밭 ${i+1}</h3><button data-plot="${i}">씨앗 심기</button></article>`;else{const{growth,left,ready}=plotGrowth(i);const stageEmoji=growth>=1?(SEEDS[f.seed]?.emoji||"🌱"):growth<0.34?"🌱":growth<0.7?"🌿":(SEEDS[f.seed]?.emoji||"🌱");html+=`<article class=item><h3>${stageEmoji} 밭 ${i+1}</h3><div class="farm-progress"><div class="farm-progress-bar" style="width:${Math.round(growth*100)}%"></div></div><p>${ready?"수확 가능":Math.ceil(left/1000).toLocaleString()+"초"}</p><button data-plot="${i}">${ready?"수확":"확인"}</button></article>`}});html+="</div>";openModal(html);document.querySelectorAll("[data-plot]").forEach(b=>b.addEventListener("click",()=>usePlot(+b.dataset.plot)))}
-function usePlot(i){const f=state.farm[i];if(!f.seed){let html="<h2>심을 씨앗 선택</h2><div class='shop-grid'>";Object.entries(SEEDS).forEach(([id,s])=>{const owned=state.inventory[id]||0;html+=`<article class="item"><h3>${s.emoji} ${s.name}</h3><p style="opacity:.75;font-size:12px;margin:2px 0;">보유 ${owned}개</p><button type="button" data-plant="${id}" ${owned<=0?"disabled":""}>${owned<=0?"미보유":"심기"}</button></article>`});html+="</div>";openModal(html);document.querySelectorAll("[data-plant]:not(:disabled)").forEach(b=>b.addEventListener("click",()=>plant(i,b.dataset.plant)));return}if(!plotGrowth(i).ready){toast("아직 성장 중입니다.");return}harvestPlot(i);openFarm()}
+function isGoldenPlot(i){return state.goldenCrop&&state.goldenCrop.plotIdx===i&&gameNow()<state.goldenCrop.expiresAt}
+function openFarm(){let html="<h2>🌿 주말농장</h2><p>각 밭을 선택해 씨앗을 심고 성장 후 수확하세요.</p><div class='farm-grid'>";state.farm.forEach((f,i)=>{if(!f.seed){if(isGoldenPlot(i))html+=`<article class="item" style="border-color:#ffd166;box-shadow:0 0 10px rgba(255,209,102,.6);"><h3>✨ 밭 ${i+1}</h3><p style="font-size:12px;color:#ffd166;">황금작물 등장!</p><button data-plot="${i}">✨ 수확!</button></article>`;else html+=`<article class=item><h3>밭 ${i+1}</h3><button data-plot="${i}">씨앗 심기</button></article>`}else{const{growth,left,ready}=plotGrowth(i);const stageEmoji=growth>=1?(SEEDS[f.seed]?.emoji||"🌱"):growth<0.34?"🌱":growth<0.7?"🌿":(SEEDS[f.seed]?.emoji||"🌱");html+=`<article class=item><h3>${stageEmoji} 밭 ${i+1}</h3><div class="farm-progress"><div class="farm-progress-bar" style="width:${Math.round(growth*100)}%"></div></div><p>${ready?"수확 가능":Math.ceil(left/1000).toLocaleString()+"초"}</p><button data-plot="${i}">${ready?"수확":"확인"}</button></article>`}});html+="</div>";openModal(html);document.querySelectorAll("[data-plot]").forEach(b=>b.addEventListener("click",()=>usePlot(+b.dataset.plot)))}
+function usePlot(i){
+ const f=state.farm[i];
+ if(!f.seed){
+   if(isGoldenPlot(i)){claimGoldenCrop(i);return}
+   let html="<h2>심을 씨앗 선택</h2><div class='shop-grid'>";Object.entries(SEEDS).forEach(([id,s])=>{const owned=state.inventory[id]||0;html+=`<article class="item"><h3>${s.emoji} ${s.name}</h3><p style="opacity:.75;font-size:12px;margin:2px 0;">보유 ${owned}개</p><button type="button" data-plant="${id}" ${owned<=0?"disabled":""}>${owned<=0?"미보유":"심기"}</button></article>`});html+="</div>";openModal(html);document.querySelectorAll("[data-plant]:not(:disabled)").forEach(b=>b.addEventListener("click",()=>plant(i,b.dataset.plant)));return
+ }
+ if(!plotGrowth(i).ready){toast("아직 성장 중입니다.");return}harvestPlot(i);openFarm()
+}
+// 황금작물: 밭에 가끔(10초마다 20% 확률) 빈 밭 중 하나에 25초간 나타나는 시간제한 보너스.
+// 제때 수확하면 큰 보상, 놓치면 그냥 사라짐 -- 긴장감과 재접속 유인을 위한 요소
+function claimGoldenCrop(i){
+ const reward=800+Math.round(Math.random()*1200);
+ state.gold+=reward;
+ state.goldenCrop=null;
+ save();
+ playSfx("jackpot");
+ showJackpotEffect(reward);
+ pushNotification("황금작물 수확!",`반짝이는 황금작물을 수확해 ${reward.toLocaleString()}G를 얻었습니다!`);
+ openFarm();
+}
+function goldenCropTick(){
+ if(state.goldenCrop&&gameNow()<state.goldenCrop.expiresAt)return; // 이미 진행 중
+ if(state.goldenCrop){state.goldenCrop=null;save()} // 만료된 골든작물 정리
+ if(Math.random()>0.2)return; // 매 틱(10초)마다 20% 확률로만 등장
+ const emptyPlots=state.farm.map((f,i)=>!f.seed?i:-1).filter(i=>i>=0);
+ if(!emptyPlots.length)return;
+ const plotIdx=emptyPlots[Math.floor(Math.random()*emptyPlots.length)];
+ state.goldenCrop={plotIdx,expiresAt:gameNow()+25000}; // 25초 안에 수확해야 함
+ save();
+ pushNotification("✨ 황금작물 등장!","주말농장에 반짝이는 황금작물이 나타났어요! 서둘러 수확하세요!");
+}
 function harvestPlot(i){
  const f=state.farm[i];
  if(!f.seed)return false;
  if(!plotGrowth(i).ready)return false;
  const seedId=f.seed;
  const s=SEEDS[seedId];
- let reward=Math.round(s.reward*(state.upgrades.scarecrow?1.1:1)*(1+state.prestigeLevel*SYS.prestigeBonusPerLevel)*(seedId===getWeeklyFeaturedSeed()?1+WEEKLY_EVENT_BONUS:1));
+ let reward=Math.round(s.reward*(state.upgrades.scarecrow?1.1:1)*(1+state.prestigeLevel*SYS.prestigeBonusPerLevel)*(seedId===getWeeklyFeaturedSeed()?1+WEEKLY_EVENT_BONUS:1)*getLuckyHourMultiplier());
  const lucky=state.upgrades.clover&&Math.random()<0.15;
  if(lucky)reward*=2;
  state.gold+=reward;
@@ -1271,10 +1336,45 @@ function recalcLevel(){
    grantMail(`레벨 업! Lv.${state.level}`,`축하합니다! 레벨 ${state.level}에 도달했습니다.`,bonus);
    pushNotification("레벨 업",`Lv.${state.level} 달성! 우편함에서 보너스를 받아가세요.`);
    playSfx("levelup");
+   showConfetti();
  }
+}
+// 레벨업 시 화면 전체에 색종이 축하 효과 (타격감/폴리시 강화)
+function showConfetti(){
+ const colors=["#ffd166","#f77f00","#06d6a0","#118ab2","#ef476f"];
+ const container=document.createElement("div");
+ container.className="confetti-container";
+ for(let i=0;i<40;i++){
+   const piece=document.createElement("div");
+   piece.className="confetti-piece";
+   piece.style.left=`${Math.random()*100}%`;
+   piece.style.background=colors[Math.floor(Math.random()*colors.length)];
+   piece.style.animationDelay=`${Math.random()*0.4}s`;
+   piece.style.animationDuration=`${1.2+Math.random()*0.8}s`;
+   container.appendChild(piece);
+ }
+ document.body.appendChild(container);
+ setTimeout(()=>container.remove(),2200);
 }
 /* ===================== 출석체크 (매일 재접속 유인) ===================== */
 function todayStr(){const d=new Date();return`${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`}
+/* ===================== 행운의 시간 (매일 랜덤한 1시간, 전체 보상 2배) ===================== */
+function simpleHash(str){let h=0;for(let i=0;i<str.length;i++){h=(h*31+str.charCodeAt(i))|0}return Math.abs(h)}
+function getLuckyHourForToday(){return simpleHash(todayStr())%24}
+function isLuckyHourNow(){return new Date().getHours()===getLuckyHourForToday()}
+function getLuckyHourMultiplier(){return isLuckyHourNow()?2:1}
+let lastLuckyHourBannerState=false;
+function updateLuckyHourBanner(){
+ const active=isLuckyHourNow();
+ if(active===lastLuckyHourBannerState)return;
+ lastLuckyHourBannerState=active;
+ const banner=ui("luckyHourBanner");
+ if(banner)banner.classList.toggle("show",active);
+ if(active){
+   toast("🍀 행운의 시간! 이번 시간 동안 모든 보상이 2배입니다!");
+   pushNotification("행운의 시간","지금부터 1시간 동안 수확·미션 보상이 2배로 지급됩니다!");
+ }
+}
 /* ===================== 주간 특가 작물 (서버 없이 날짜 기반 결정 -- 모든 플레이어가 동일하게 봄) ===================== */
 function getIsoWeekNumber(){
  const now=new Date();

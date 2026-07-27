@@ -1,0 +1,25 @@
+{
+  "version": "2026.07.25-fun-factor-200-v52",
+  "context": "4 fun-maximizing features, each targeting a different engagement lever: skill expression, urgency, surprise, visual impact.",
+  "features": {
+    "1_mission_combo": "Consecutive correct mission answers build a streak (resets on wrong answer), each level adds 5 percent to the reward, capped at streak 10 (50 percent bonus). Shown as a fire-emoji combo count in the toast.",
+    "2_golden_crop": "Roughly every 10 seconds, 20 percent chance an empty farm plot gets a 25-second glowing golden crop, visible on the map and in the farm menu. Claiming grants 800-2000G with the existing jackpot celebration animation. Missing it just makes it vanish, no penalty.",
+    "3_lucky_hour": "One random hour per day (derived deterministically from the date, no server storage needed) doubles harvest and mission rewards, with a pulsing banner at the top while active.",
+    "4_juice": "Screen-shake on car collision (targets the canvas specifically to avoid a conflicting transform rule on gameShell), confetti burst on every level-up."
+  },
+  "verification": {
+    "syntax": "node --check passes.",
+    "golden_crop_tested": "Real navigation to the farm, claimed the golden crop, confirmed gold increased in the expected range and the state cleared afterward.",
+    "combo_tested": "Answered a known-correct mission option, confirmed the reward matched the expected combo math exactly and the streak counter incremented.",
+    "visual_effects_tested": "Directly triggered both animations, confirmed they are recognized and applied with zero page errors.",
+    "regression_suite": "Graph integrity, stuck-node escape, speed equalization, and standard playthrough all pass."
+  },
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}
