@@ -1,0 +1,20 @@
+{
+  "version": "2026.07.25-kakao-error-surfacing-v53",
+  "context": "User reported only Kakao login fails. Could not test against real Kakao credentials in this sandbox, so this round fixes the one concrete bug found and lists actionable config checks.",
+  "real_bug_found": "kakao-callback.js's catch block and failure checks replaced every real error with a generic message, discarding Kakao's own error_description/error/msg fields entirely, making it impossible to tell why it failed.",
+  "fix": "Now surfaces the actual reason at every failure point: OAuth error/error_description if denied, the token endpoint's error_description if code exchange fails, the profile endpoint's msg if user-info fails, and the real exception message otherwise.",
+  "likely_causes_to_check": "Using the wrong key type as KAKAO_CLIENT_ID (must be the REST API key specifically, not native app/JS/admin key -- a very common first-time mistake). Redirect URI must match exactly what's registered. If Client Secret is activated on Kakao's side, KAKAO_CLIENT_SECRET must also be set in Cloudflare env vars.",
+  "next_step": "Please retry Kakao login and share the new, more specific error message so the exact remaining cause can be pinpointed.",
+  "verification": {
+    "syntax": "node --check passes.",
+    "regression_suite": "Graph integrity, stuck-node escape, and speed equalization all pass unchanged (only kakao-callback.js was touched)."
+  },
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    }
+  }
+}
