@@ -1,0 +1,24 @@
+{
+  "version": "2026.07.31-kakao-sw-navigation-block-fix-v54",
+  "context": "User reported Kakao login 'keeps getting blocked' even after v53 improved server-side error messages. Since v53's better error message never appeared to the user, the failure had to be happening before the request ever reached the server -- pointed straight at sw.js (service worker), which is the only layer sitting between the button click and the network on every page load.",
+  "real_bug_found": "sw.js intercepted ALL top-level navigation requests, including clicks on the '/api/auth/kakao-start' (and naver/google-start, and the OAuth callback URLs) links, because 'mode===\"navigate\"' matched them too. It then called fetch(req,{cache:\"no-store\"}) with default redirect:'follow', so the service worker itself tried to follow the 302 redirect chain instead of letting the browser do a real navigation. Kakao's login flow can involve extra redirect hops (e.g. app-switch/deep-link handoff to the KakaoTalk app) that a plain fetch() inside a service worker cannot reliably follow the way an actual browser navigation can; when that fetch() rejected, the code fell back to caches.match(req), which has nothing cached for an auth URL, so the navigation resolved to nothing -- i.e. the login click just stalled/blocked with no error shown at all. This also explains why only Kakao was affected: Google/Naver's redirect chains are simpler https-only hops that happen to survive being fetch()'d, while Kakao's does not. As a secondary bug, the same code path also tried to caches.put() a redirected response, which the Cache API spec rejects outright (silently swallowed, but wasted work on every navigation).",
+  "fix": "sw.js now returns immediately (does nothing, lets the browser handle it natively) for any request whose path starts with '/api/' -- this is a one-line bypass added at the very top of the fetch handler, before any caching logic runs. All /api/auth/* endpoints (kakao/naver/google start+callback, exchange) and every other API route now go straight to the network exactly like a service worker wasn't there. Also hardened the remaining navigate/html/js/css caching branch to skip caches.put() when the response was redirected, so it can no longer throw for any other page that happens to redirect. Bumped the CACHE version string so browsers with the old broken service worker replace it immediately on next visit instead of continuing to serve the stale broken version from their install.",
+  "why_this_is_the_right_fix": "Service workers should never mediate OAuth/auth redirect flows -- this is a well-known, well-documented class of bug (Workbox's own docs warn against applying navigation caching strategies to auth redirect URLs). /api/** was never meant to be offline-cacheable content anyway, so excluding it entirely has no downside and removes this whole failure mode for all three social logins, not just Kakao.",
+  "action_required_from_user": {
+    "still_worth_checking_on_kakao_developers_console": "This fix removes a real client-side blocker, but if login still fails after this deploys, check: (1) KAKAO_CLIENT_ID must be the REST API key specifically (not native/JS/admin key) -- most common mistake. (2) '카카오 로그인' toggle must be switched ON in the console (it's off by default for new apps). (3) Redirect URI registered there must exactly match https://<your-domain>/api/auth/kakao-callback, protocol and trailing slash included. (4) If 'Client Secret 코드' is activated, KAKAO_CLIENT_SECRET must also be set in Cloudflare Pages env vars."
+  },
+  "verification": {
+    "syntax": "node --check passes on sw.js and all touched files.",
+    "logic_review": "Traced the fetch handler for a GET navigation to /api/auth/kakao-start: with the new top-of-function '/api/' bypass, the handler returns before reaching the fetch()/redirect-follow/cache.put code, so the browser performs the navigation itself exactly as if no service worker were registered.",
+    "regression_suite": "Graph integrity, stuck-node escape, and speed equalization all pass unchanged (only sw.js was touched); static asset caching for game assets under /public/** is untouched and still works exactly as before, since only /api/** was excluded."
+  },
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    },
+    "note": "Because this fix changes sw.js, users with the old service worker already installed in their browser need one page reload to pick up the new CACHE version and unregister/replace the stale worker (this happens automatically via skipWaiting()/clients.claim(), no manual action needed)."
+  }
+}
