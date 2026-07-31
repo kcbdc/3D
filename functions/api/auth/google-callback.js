@@ -1,4 +1,4 @@
-import { redirectToApp, upsertSocialUserAndIssueToken } from "./_shared.js";
+import { redirectToApp, upsertSocialUserAndIssueToken } from "../_lib/social-auth.js";
 
 // 구글 로그인 콜백. 필요한 환경변수: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 export async function onRequestGet({ request, env }) {

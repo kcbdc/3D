@@ -1,4 +1,4 @@
-import { requireDB, json } from "../db.js";
+import { requireDB, json } from "../_lib/db.js";
 
 export async function onRequestGet({ request, env }) {
   try {

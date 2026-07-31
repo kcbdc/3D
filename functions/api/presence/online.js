@@ -1,4 +1,4 @@
-import { requireDB, json } from "../db.js";
+import { requireDB, json } from "../_lib/db.js";
 
 // 하트비트 주기가 20초이므로, 한 번 정도는 놓쳐도 여유를 두고 40초 이내 접속을 "온라인"으로 판단
 const ONLINE_WINDOW_SECONDS = 40;

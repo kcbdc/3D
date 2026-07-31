@@ -1,5 +1,5 @@
-import { requireDB, json } from "../db.js";
-import { runChat } from "../_ai.js";
+import { requireDB, json } from "../_lib/db.js";
+import { runChat } from "../_lib/ai.js";
 
 const NODE_THEMES = {
   HQ: "조폐공사 본사 (일반 사무/행정 물품 발주)",

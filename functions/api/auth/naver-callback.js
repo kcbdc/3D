@@ -1,4 +1,4 @@
-import { redirectToApp, upsertSocialUserAndIssueToken } from "./_shared.js";
+import { redirectToApp, upsertSocialUserAndIssueToken } from "../_lib/social-auth.js";
 
 // 네이버 로그인 콜백. 필요한 환경변수: NAVER_CLIENT_ID, NAVER_CLIENT_SECRET
 export async function onRequestGet({ request, env }) {

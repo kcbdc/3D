@@ -1,5 +1,5 @@
-import { runChat } from "./_ai.js";
-import { json } from "./db.js";
+import { runChat } from "./_lib/ai.js";
+import { json } from "./_lib/db.js";
 
 const SYSTEM_PROMPT =
   "당신은 대한민국 공공조달 절차를 가르치는 '조폐 자문관' AI입니다. " +

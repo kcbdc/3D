@@ -40,6 +40,26 @@ GitHub Pages나 Cloudflare Pages에서는 프로젝트 파일을 그대로 배�
 - Build output directory: `/`
 - Functions는 `/functions/api/time.js`가 자동으로 `/api/time`으로 연결됩니다.
 
+## 백엔드(Functions) 구조
+
+```
+functions/api/_lib/     ← 공용 헬퍼 전용 폴더. 이름이 _로 시작해서 라우팅 대상이 아님.
+  db.js                    D1 접근 (requireDB, json)
+  ai.js                    Workers AI 호출 (runChat, requireAI)
+  moderation.js            욕설/부적절 콘텐츠 검열 (moderateText)
+  social-auth.js           소셜로그인 공용 로직 (redirectToApp, upsertSocialUserAndIssueToken)
+
+functions/api/*.js       ← 실제 라우트. _lib은 "./_lib/파일명.js"로 import
+functions/api/*/*.js     ← 하위 폴더(auth/, dm/, favorites/, presence/, users/, admin/)의 라우트.
+                            _lib은 "../_lib/파일명.js"로 import
+```
+
+**새 API 파일을 추가할 때 지켜야 할 규칙 (딱 이거 하나만 기억하면 됨):**
+- `functions/api/` 바로 밑에 파일을 만든다 → `_lib` 참조는 `"./_lib/xxx.js"`
+- `functions/api/어떤폴더/` 안에 파일을 만든다 → `_lib` 참조는 `"../_lib/xxx.js"`
+- 공용 헬퍼를 새로 추가할 땐 반드시 `functions/api/_lib/` 안에만 만들 것 (다른 곳에 만들면 의도치 않게 실제 라우트(`/api/xxx`)로 노출됨)
+- 기존 헬퍼 파일을 복사해서 새 라우트를 만들 때, import 경로도 반드시 새 파일 위치 기준으로 다시 계산할 것 (복붙 후 경로 그대로 두는 실수가 실제로 배포 실패를 일으킨 적 있음)
+
 ## 참고
 
 도시 객체는 첨부된 턴어라운드 자료를 직접 복사한 것이 아니라, 동일한 블록형·레고시티 분위기를

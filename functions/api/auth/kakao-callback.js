@@ -1,4 +1,4 @@
-import { redirectToApp, upsertSocialUserAndIssueToken } from "./_shared.js";
+import { redirectToApp, upsertSocialUserAndIssueToken } from "../_lib/social-auth.js";
 
 // 카카오 로그인 콜백. 필요한 환경변수: KAKAO_CLIENT_ID, KAKAO_CLIENT_SECRET
 // (카카오는 client_secret이 선택사항이지만, 디벨로퍼스 콘솔에서 "Client Secret 코드" 사용을
