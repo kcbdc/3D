@@ -1,0 +1,24 @@
+{
+  "version": "2026.07.31-backend-restructure-v55",
+  "context": "The recent Cloudflare build failure (cheer.js/missions.js/ranking-submit.js importing the wrong relative path to db.js) exposed a structural problem: shared helper modules (db.js, _ai.js, _moderation.js, auth/_shared.js) were scattered directly among route files with no consistent depth rule, and 3 fully dead duplicate files existed alongside the real ones (api/ai.js, api/moderation.js, api/auth/shared.js -- identical content, no onRequest export, only differing in which duplicate they imported). This made it easy to import the wrong one and break the build, and it already happened once.",
+  "what_changed": {
+    "new_lib_folder": "All shared, non-routable helpers moved into functions/api/_lib/ (underscore prefix keeps the whole folder out of Cloudflare Pages' automatic routing): db.js (requireDB, json), ai.js (runChat, requireAI, AI_MODEL -- moved from _ai.js), moderation.js (moderateText -- moved from _moderation.js), social-auth.js (redirectToApp, upsertSocialUserAndIssueToken -- moved from auth/_shared.js).",
+    "one_rule_for_all_imports": "Every route file now follows exactly one depth rule instead of having to remember where db.js happens to sit: files directly under functions/api/*.js import as './_lib/xxx.js'; files under any functions/api/<folder>/*.js (auth, dm, favorites, presence, users, admin) import as '../_lib/xxx.js'. No more per-file guessing.",
+    "dead_files_removed": "Deleted api/ai.js, api/moderation.js, api/auth/shared.js -- byte-for-byte or near-identical duplicates of the real _lib files that had zero onRequest exports (unreachable as routes) and existed only as traps for future copy-paste mistakes.",
+    "docs_updated": "functions/README.md now documents the _lib convention and the one-rule-for-imports guidance directly, so future edits (human or AI) don't reintroduce the same class of bug."
+  },
+  "verification": {
+    "syntax": "node --check passes on all 29 remaining .js files under functions/.",
+    "import_resolution": "Wrote a script that resolves every relative import in functions/ against the filesystem -- all resolve to real files, zero broken paths (this is the same class of check that would have caught the original ../db.js bug and the earlier _shared.js/shared.js confusion before deployment).",
+    "route_count_unchanged": "All 25 actual API routes (onRequestGet/onRequestPost exports) are untouched in behavior -- only their import paths changed. No endpoint URLs changed."
+  },
+  "deployment": {
+    "cloudflare_pages": {
+      "framework_preset": "None",
+      "build_command": "(empty)",
+      "build_output_directory": "/",
+      "d1_binding": "DB"
+    },
+    "note": "Push this to GitHub and Cloudflare will pick it up on the next auto-deploy; no dashboard config changes needed since the route URLs (/api/...) are unchanged."
+  }
+}
