@@ -8,12 +8,19 @@ const CHARS=SYS.characters,SEEDS=SYS.seeds,CHAR_BASE="./public/assets/characters
 const DAY="./public/assets/world/world_day.png",NIGHT="./public/assets/world/world_exact_map.png";
 const DPR=Math.min(devicePixelRatio||1, innerWidth<900?1.35:1.75);
 let W=0,H=0,bgRect={x:0,y:0,w:1,h:1},bgDay,bgNight,last=performance.now(),selected=null,started=false,autoPath=[],currentEdge=null,lastUiUpdate=0,lastPetTick=0,lastDisturbanceTick=0,lastThreatTick=0,lastCarSpawnTick=0,lastLuckyHourCheck=0,lastGoldenCropTick=0,resizeSettleTimer=null;
-const images={},keys={},dpad={up:false,down:false,left:false,right:false};let state=SYS.newState();
+const images={},keys={};
+// Analog movement input from the floating pointer-driven virtual joystick (touch drag on mobile,
+// mouse drag on PC). x/y range roughly -1..1; magnitude reflects how far the drag is from center.
+const joystickVec={x:0,y:0};
+// Smoothing state for natural acceleration/deceleration and turning, applied to manual movement
+// (autoPath movement is left as-is since it already eases into/out of each waypoint on its own).
+let smoothDX=0,smoothDY=0,moveAccel=0;
+let state=SYS.newState();
 
 const isDay=()=>{const h=new Date().getHours();return h>=5&&h<19};
 const activeBg=()=>isDay()?bgDay:bgNight;
 function applyUiScale(){
- // Auto-shrinks HUD/dpad/interact chrome to fit small mobile screens instead of overflowing them.
+ // Auto-shrinks HUD/AUTO-button/interact chrome to fit small mobile screens instead of overflowing them.
  // Reference size = a comfortable small-phone landscape viewport; never scales UP past 1 on large screens.
  const REF_W=760,REF_H=380,MIN_SCALE=.62;
  const isPortrait=matchMedia("(orientation:portrait)").matches;
@@ -97,7 +104,7 @@ function chooseEdgeAtNode(nodeId,inputX,inputY,previousEdge){
  }
  return bestScore>.08?best:null;
 }
-function moveOnRoute(dx,dy,dt){
+function moveOnRoute(dx,dy,dt,speedMul=1){
  const magnitude=Math.hypot(dx,dy);if(magnitude<.05)return;
  dx/=magnitude;dy/=magnitude;
  if(!currentEdge)currentEdge=nearestEdge();
@@ -123,7 +130,7 @@ function moveOnRoute(dx,dy,dt){
 
  const info=edgeInfo(currentEdge);
  const sign=(dx*info.tx+dy*info.ty)>=0?1:-1;
- const speed=state.player.speed*CHARS[state.character].speed;
+ const speed=state.player.speed*CHARS[state.character].speed*speedMul;
  const step=worldStep(info.tx*sign,info.ty*sign,speed,dt);
  const projected=edgeProjection(currentEdge,info.x+step.x,info.y+step.y);
  const moved=Math.hypot(projected.x-state.player.x,projected.y-state.player.y);
@@ -450,7 +457,7 @@ async function fetchWeather(){
 
 function isMoving(){
   return Boolean(
-    dpad.up||dpad.down||dpad.left||dpad.right||
+    joystickVec.x||joystickVec.y||
     autoPath.length||
     keys.ArrowUp||keys.ArrowDown||keys.ArrowLeft||keys.ArrowRight||
     keys.w||keys.a||keys.s||keys.d
@@ -492,6 +499,7 @@ function update(dt){
   let dx=0,dy=0;
 
   if(autoPath.length){
+    smoothDX=0;smoothDY=0;moveAccel=0;
     const target=autoPath[0];
     const isFinalHop=autoPath.length===1; // last waypoint = the hotspot itself, may sit off-road
     dx=target.x-state.player.x;
@@ -531,15 +539,20 @@ function update(dt){
       dy=0;
     }
   }else{
-    dx=(dpad.right?1:0)-(dpad.left?1:0)
-      +(keys.ArrowRight||keys.d?1:0)
-      -(keys.ArrowLeft||keys.a?1:0);
-    dy=(dpad.down?1:0)-(dpad.up?1:0)
-      +(keys.ArrowDown||keys.s?1:0)
-      -(keys.ArrowUp||keys.w?1:0);
+    const targetX=(keys.ArrowRight||keys.d?1:0)-(keys.ArrowLeft||keys.a?1:0)+joystickVec.x;
+    const targetY=(keys.ArrowDown||keys.s?1:0)-(keys.ArrowUp||keys.w?1:0)+joystickVec.y;
+    const moving=Math.hypot(targetX,targetY)>.05;
+    // Ease the input direction (turnLerp) and the speed ramp (moveAccel) toward their targets
+    // each frame instead of snapping instantly -- this is what makes starting, stopping, and
+    // changing direction feel smooth and natural rather than rigid/robotic.
+    const turnLerp=Math.min(1,dt*16);
+    smoothDX+=(targetX-smoothDX)*turnLerp;
+    smoothDY+=(targetY-smoothDY)*turnLerp;
+    moveAccel+=((moving?1:0)-moveAccel)*Math.min(1,dt*(moving?9:12));
+    dx=smoothDX;dy=smoothDY;
   }
 
-  moveOnRoute(dx,dy,dt);
+  moveOnRoute(dx,dy,dt,autoPath.length?1:Math.max(.4,moveAccel));
   updateCars(dt);
   checkCarCollision();
 
@@ -1187,30 +1200,59 @@ function load(){
  if(!state.player.speed||state.player.speed<17)state.player.speed=17; // migrate pre-v12 saves to the RUN-removal baseline speed
 }
 function buildCards(){const desc={hunmin:"업무와 농장 성장이 균형 잡힌 전략가",daim:"업무 골드 보상이 20% 증가하는 탐색관",sunsik:"이동 속도가 15% 빠른 호위무사"};ui("characterCards").innerHTML=Object.entries(CHARS).map(([id,c])=>`<article class="character-card" data-char="${id}"><img src="${CHAR_BASE+c.img}" alt="${c.name}"><div class=card-copy><h3>${c.name}</h3><b>${c.role}</b><p>${desc[id]}</p></div></article>`).join("");document.querySelectorAll("[data-char]").forEach(card=>card.addEventListener("click",()=>{selected=card.dataset.char;document.querySelectorAll("[data-char]").forEach(x=>x.classList.toggle("selected",x===card));ui("startBtn").disabled=false}))}
-const dpadDebug={up:{pd:0,ts:0,tt:0},down:{pd:0,ts:0,tt:0},left:{pd:0,ts:0,tt:0},right:{pd:0,ts:0,tt:0}};
-function bindDpad(id,key){
- const el=ui(id);
- if(!el){console.warn(`이동 버튼 누락: ${id}`);return;}
- const down=e=>{
-   e.preventDefault();
-   if(e.type==="pointerdown")dpadDebug[key].pd++;
-   if(e.type==="touchstart")dpadDebug[key].tt++;
+// ---- Unified pointer-driven virtual joystick -------------------------------------------------
+// A single implementation covers both control schemes via the Pointer Events API (which unifies
+// touch/mouse/pen):
+//  - Smartphone: finger touch-and-drag directly on the game screen.
+//  - PC: mouse click-and-drag (keyboard arrow keys / WASD keep working too, handled in update()).
+// The joystick graphic appears at the exact point the drag started, then a thumb follows the
+// drag within a clamped radius. It only arms when the press lands directly on the canvas -- any
+// tap that hits a button/panel layered on top never gets hijacked into a movement drag.
+let joystickPointerId=null;
+const joystickOrigin={x:0,y:0};
+const JOY_RADIUS=52; // px of drag before the input vector is fully saturated (magnitude 1)
+const JOY_DEADZONE=8; // px -- ignores tiny jitter right around the press point
+function joystickShow(x,y){
+ const el=ui("virtualJoystick");
+ if(!el)return;
+ el.style.left=`${x}px`;el.style.top=`${y}px`;
+ el.classList.add("active");
+ const thumb=ui("joystickThumb");
+ if(thumb)thumb.style.transform="translate(0px,0px)";
+}
+function joystickHide(){
+ ui("virtualJoystick")?.classList.remove("active");
+ joystickVec.x=0;joystickVec.y=0;
+ joystickPointerId=null;
+}
+function bindJoystick(){
+ if(!canvas)return;
+ canvas.addEventListener("pointerdown",e=>{
+   if(e.target!==canvas)return; // never steal a tap that landed on a UI element above the canvas
+   if(joystickPointerId!==null)return; // ignore extra fingers/buttons while a drag is already active
    if(autoPath.length){autoPath=[];currentEdge=null;setAutoActive(false)} // manual input takes over instantly, no stale route/edge
-   dpad[key]=true;el.classList.add("pressed");el.setPointerCapture?.(e.pointerId)
- };
- const up=e=>{e?.preventDefault?.();dpad[key]=false;el.classList.remove("pressed")};
- el.addEventListener("pointerdown",down);
- el.addEventListener("pointerup",up);
- el.addEventListener("pointercancel",up);
- el.addEventListener("lostpointercapture",up);
- // Touch-event fallback: some Android WebView browsers (Samsung Internet/Edge) have had
- // inconsistent Pointer Events support compared to desktop-parity Chrome, which can silently
- // drop pointerdown/up on some buttons but not others -- touch events are the more universally
- // reliable API to layer on top as a safety net.
- el.addEventListener("touchstart",down,{passive:false});
- el.addEventListener("touchmove",e=>e.preventDefault(),{passive:false});
- el.addEventListener("touchend",up,{passive:false});
- el.addEventListener("touchcancel",up,{passive:false});
+   joystickPointerId=e.pointerId;
+   joystickOrigin.x=e.clientX;joystickOrigin.y=e.clientY;
+   canvas.setPointerCapture?.(e.pointerId);
+   joystickShow(e.clientX,e.clientY);
+   e.preventDefault();
+ });
+ canvas.addEventListener("pointermove",e=>{
+   if(e.pointerId!==joystickPointerId)return;
+   let dx=e.clientX-joystickOrigin.x,dy=e.clientY-joystickOrigin.y;
+   const dist=Math.hypot(dx,dy)||1;
+   const clamped=Math.min(dist,JOY_RADIUS);
+   dx=dx/dist*clamped;dy=dy/dist*clamped;
+   const thumb=ui("joystickThumb");
+   if(thumb)thumb.style.transform=`translate(${dx}px,${dy}px)`;
+   if(clamped<JOY_DEADZONE){joystickVec.x=0;joystickVec.y=0}
+   else{joystickVec.x=dx/JOY_RADIUS;joystickVec.y=dy/JOY_RADIUS}
+   e.preventDefault();
+ });
+ const endDrag=e=>{if(e.pointerId===joystickPointerId)joystickHide()};
+ canvas.addEventListener("pointerup",endDrag);
+ canvas.addEventListener("pointercancel",endDrag);
+ canvas.addEventListener("pointerleave",endDrag);
 }
 addEventListener("contextmenu",e=>e.preventDefault());
 addEventListener("selectstart",e=>e.preventDefault());
@@ -1239,7 +1281,7 @@ addEventListener("keydown",e=>{
   if(e.key==="e"||e.key==="Enter")interact()
 });
 addEventListener("keyup",e=>keys[e.key]=false);
-bindDpad("moveUp","up");bindDpad("moveDown","down");bindDpad("moveLeft","left");bindDpad("moveRight","right");
+bindJoystick();
 ui("interactBtn").addEventListener("click",interact);
 ui("autoBtn").addEventListener("click",()=>{
  if(autoPath.length){ // tap again to cancel an in-progress route
@@ -1249,13 +1291,13 @@ ui("autoBtn").addEventListener("click",()=>{
  startAuto(h);
 });
 ui("rankingBtn").addEventListener("click",openRankingPanel);ui("codexBtn").addEventListener("click",openCodex);ui("settingsBtn").addEventListener("click",openSettingsPanel);ui("notifBtn").addEventListener("click",openNotifPanel);ui("shareBtn").addEventListener("click",shareGame);ui("communityBtn").addEventListener("click",openCommunityPanel);
-ui("menuBtn").addEventListener("click",()=>{ui("utilityDrawer").classList.toggle("open");ui("utilityDrawer").setAttribute("aria-hidden",String(!ui("utilityDrawer").classList.contains("open")));const preview=ui("drawerMapPreview");if(preview)preview.src=isDay()?DAY:NIGHT;});ui("drawerClose").addEventListener("click",()=>ui("utilityDrawer").classList.remove("open"));ui("shopShortcut").addEventListener("click",openShop);
+ui("menuBtn").addEventListener("click",()=>{const drawer=ui("utilityDrawer");const opening=!drawer.classList.contains("open");drawer.classList.toggle("open",opening);drawer.setAttribute("aria-hidden",String(!opening));const preview=ui("drawerMapPreview");if(preview)preview.src=isDay()?DAY:NIGHT;const quest=ui("questPanel");if(quest)quest.hidden=!opening;});ui("drawerClose").addEventListener("click",()=>{ui("utilityDrawer").classList.remove("open");ui("utilityDrawer").setAttribute("aria-hidden","true");const quest=ui("questPanel");if(quest)quest.hidden=true;});ui("shopShortcut").addEventListener("click",openShop);
 ui("questCollapse").addEventListener("click",()=>ui("questPanel").classList.toggle("collapsed"));ui("claimRewardBtn").addEventListener("click",()=>{if(state.quests.every(Boolean)){state.gold+=500;state.quests=[false,false,false,false];save();toast("일일 보상 +500G")}else toast("모든 미션을 완료하세요.")});ui("modalClose").addEventListener("click",closeModal);ui("modal").addEventListener("click",e=>{if(e.target===ui("modal"))closeModal()});
 ui("startBtn").addEventListener("click",async()=>{state.character=selected;started=true;ui("characterSelect").classList.remove("show");await KOMSCO.Orientation.lockLandscape();save();if(!state.tutorialDone)showTutorial();else{checkDailyAttendance();toast(`${CHARS[selected].name}과 함께 시작합니다.`)}});
 function showTutorial(){
  const steps=[
    {title:"👋 환영합니다!",body:"KOMSCO 네온팜 시티에 오신 것을 환영합니다. 몇 가지만 빠르게 안내해드릴게요."},
-   {title:"🕹️ 이동하기",body:"왼쪽 아래 방향키로 이동하고, 가운데 AUTO 버튼을 누르면 가까운 건물까지 자동으로 이동합니다."},
+   {title:"🕹️ 이동하기",body:"화면을 터치(PC는 마우스 클릭)한 채로 드래그하면 그 방향으로 이동하고, 키보드 방향키/WASD로도 이동할 수 있어요. 왼쪽 아래 AUTO 버튼을 누르면 가까운 건물까지 자동으로 이동합니다."},
    {title:"🏢 상호작용", body:"건물이나 시설 근처에 가면 오른쪽 아래 '상호작용' 버튼이 활성화됩니다. 눌러서 업무를 수행하거나 씨앗을 심어보세요."},
    {title:"🌱 씨앗상점 & 주말농장", body:"씨앗상점에서 씨앗을 구매하고, 주말농장의 빈 밭에 심어 키운 뒤 다 자라면 수확해 골드를 얻으세요."},
    {title:"📅 매일 접속하세요", body:"매일 접속하면 출석 보상을 받을 수 있고, 오늘의 미션을 모두 완료하면 퀘스트 패널에서 추가 보상도 받을 수 있어요. 즐거운 플레이 되세요!"}
@@ -1301,10 +1343,9 @@ function updateDebugOverlay(){
 `orientation: ${isPortrait?"portrait(rotated)":"landscape"}
 game W,H: ${W},${H}
 player: ${state.player.x.toFixed(2)}, ${state.player.y.toFixed(2)}
-dpad state: ↑${dpad.up?1:0} ↓${dpad.down?1:0} ←${dpad.left?1:0} →${dpad.right?1:0}
-events(pointerdown/touchstart):
- ↑ ${dpadDebug.up.pd}/${dpadDebug.up.tt}  ↓ ${dpadDebug.down.pd}/${dpadDebug.down.tt}
- ← ${dpadDebug.left.pd}/${dpadDebug.left.tt}  → ${dpadDebug.right.pd}/${dpadDebug.right.tt}
+joystick vec: ${joystickVec.x.toFixed(2)}, ${joystickVec.y.toFixed(2)} (active: ${joystickPointerId!==null})
+keys: ↑${keys.ArrowUp||keys.w?1:0} ↓${keys.ArrowDown||keys.s?1:0} ←${keys.ArrowLeft||keys.a?1:0} →${keys.ArrowRight||keys.d?1:0}
+moveAccel: ${moveAccel.toFixed(2)}
 autoPath: ${autoPath.length}`;
 }
 function loop(now){

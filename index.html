@@ -60,7 +60,7 @@
     </nav>
   </header>
 
-  <aside id="questPanel" class="panel">
+  <aside id="questPanel" class="panel" hidden>
     <div class="quest-head"><div><small>QUEST</small><b>오늘의 미션</b></div><button id="questCollapse" type="button">−</button></div>
     <ol id="questList"></ol>
     <button id="claimRewardBtn" class="primary-button" type="button">보상 받기</button>
@@ -86,13 +86,7 @@
   <div id="interactionHint"></div>
   <button id="interactBtn" class="primary-button" type="button">상호작용</button>
 
-  <nav id="dpad" aria-label="이동 방향키">
-    <button id="moveUp" type="button" aria-label="위로 이동">▲</button>
-    <button id="moveLeft" type="button" aria-label="왼쪽으로 이동">◀</button>
-    <button id="autoBtn" type="button" aria-label="자동 이동 시작/취소">AUTO</button>
-    <button id="moveRight" type="button" aria-label="오른쪽으로 이동">▶</button>
-    <button id="moveDown" type="button" aria-label="아래로 이동">▼</button>
-  </nav>
+  <button id="autoBtn" type="button" aria-label="자동 이동 시작/취소">AUTO</button>
 
   <div id="toast" aria-live="polite"></div>
   <div id="luckyHourBanner">🍀 행운의 시간 · 보상 2배!</div>
@@ -101,6 +95,10 @@
     <div class="modal-card"><button id="modalClose" type="button">×</button><div id="modalBody"></div></div>
   </section>
 </main>
+
+<div id="virtualJoystick" aria-hidden="true">
+  <div id="joystickBase"><div id="joystickThumb"></div></div>
+</div>
 
 <script defer src="./src/config/world-data.js?v=kakao-error-surfacing-v53"></script>
 <script defer src="./src/engine/path-engine.js?v=kakao-error-surfacing-v53"></script>
