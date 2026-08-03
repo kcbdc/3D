@@ -1,1 +1,157 @@
-1
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<meta name="theme-color" content="#071522" />
+<title>3D 소원의 분수대</title>
+<style>
+:root{--glass:rgba(5,15,28,.72);--line:rgba(255,255,255,.16);--gold:#ffe07a}
+*{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#071522;color:#fff;font-family:Arial,"Noto Sans KR",sans-serif}
+canvas{display:block;touch-action:none}.hud{position:fixed;inset:0;pointer-events:none}.top{display:flex;justify-content:space-between;padding:12px;gap:10px}.group{display:flex;gap:8px}.box{min-width:88px;padding:8px 12px;border:1px solid var(--line);border-radius:15px;background:var(--glass);backdrop-filter:blur(12px);box-shadow:0 9px 25px rgba(0,0,0,.22)}.box small{display:block;font-size:10px;opacity:.65;font-weight:800;letter-spacing:.09em}.box strong{font-size:20px}.tip{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);width:min(620px,calc(100% - 150px));padding:11px 16px;text-align:center;font-size:13px;line-height:1.5;border:1px solid var(--line);border-radius:17px;background:var(--glass);backdrop-filter:blur(12px)}.tip b{color:var(--gold)}#toast{position:absolute;left:50%;top:85px;transform:translate(-50%,-8px);padding:9px 16px;border:1px solid var(--line);border-radius:999px;background:rgba(3,11,21,.82);font-weight:900;opacity:0;transition:.22s;white-space:nowrap}#toast.show{opacity:1;transform:translate(-50%,0)}#power{position:absolute;left:16px;bottom:20px;width:125px;padding:9px 11px;border:1px solid var(--line);border-radius:15px;background:var(--glass)}#power small{font-size:10px;opacity:.7}.meter{height:7px;margin-top:7px;border-radius:999px;background:rgba(255,255,255,.13);overflow:hidden}#fill{height:100%;width:0;background:linear-gradient(90deg,#57dbff,#ffe16e,#ff7668)}#sound{position:absolute;right:16px;bottom:19px;width:48px;height:48px;border:1px solid var(--line);border-radius:50%;background:var(--glass);color:white;font-size:19px;pointer-events:auto}#pullCue{position:absolute;left:50%;bottom:142px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:4px;color:#ffe07a;font-size:12px;font-weight:900;text-shadow:0 2px 8px #000;opacity:.9;animation:cue 1.2s ease-in-out infinite}#pullCue i{font-style:normal;font-size:28px;line-height:1}@keyframes cue{0%,100%{transform:translate(-50%,0);opacity:.55}50%{transform:translate(-50%,14px);opacity:1}}.overlay{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(rgba(2,8,16,.18),rgba(2,8,16,.72))}#end{display:none}.card{width:min(92vw,500px);padding:30px 25px;text-align:center;border:1px solid var(--line);border-radius:28px;background:rgba(4,14,27,.88);backdrop-filter:blur(17px);box-shadow:0 28px 90px rgba(0,0,0,.48)}h1{font-size:clamp(32px,8vw,53px);margin:0 0 10px}.card p{margin:0 0 20px;line-height:1.65;opacity:.76}.card button{border:0;border-radius:999px;padding:14px 25px;background:linear-gradient(135deg,#fff0aa,#ffbe43);font-size:17px;font-weight:900;color:#173047;cursor:pointer}.badges{display:flex;flex-wrap:wrap;justify-content:center;gap:7px;margin:15px 0 22px}.badge{font-size:12px;padding:7px 10px;border-radius:999px;background:rgba(255,255,255,.08)}.difficulty{display:flex;justify-content:center;gap:8px;margin:2px 0 20px}.difficulty button{padding:10px 18px;font-size:14px;background:rgba(255,255,255,.09);color:#fff;border:1px solid rgba(255,255,255,.18);box-shadow:none}.difficulty button.active{background:linear-gradient(135deg,#fff0aa,#ffbe43);color:#173047;border-color:transparent}#grade{font-size:68px;font-weight:1000;color:var(--gold)}
+@media(max-width:620px){.top{padding:8px}.box{min-width:70px;padding:7px 8px}.box strong{font-size:17px}.tip{width:calc(100% - 22px);bottom:75px;font-size:12px}#power{left:11px;bottom:12px}#sound{right:11px;bottom:11px}#toast{top:70px;font-size:12px}#pullCue{bottom:132px}}
+</style>
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.170.0/build/three.module.js"}}</script>
+</head>
+<body>
+<div id="app"></div>
+<div class="hud">
+ <div class="top"><button id="exitBtn" style="pointer-events:auto;padding:8px 14px;border:1px solid var(--line);border-radius:999px;background:var(--glass);backdrop-filter:blur(12px);color:#fff;font-weight:800;font-size:13px;cursor:pointer">← 농장으로</button><div class="group"><div class="box"><small>SCORE</small><strong id="score">0</strong></div><div class="box"><small>COINS</small><strong id="coins">10</strong></div><div class="box"><small>COMBO</small><strong id="combo">×0</strong></div></div><div class="box"><small>WIND</small><strong id="wind">0.0 →</strong></div></div>
+ <div id="toast"></div><div id="pullCue"><span>아래로 당기기</span><i>↓</i></div><div id="power"><small>THROW POWER · <b id="powerValue">0%</b></small><div class="meter"><div id="fill"></div></div></div>
+ <div class="tip"><b>500원 동전을 아래로 끌었다가 놓으세요.</b><br>아래로 충분히 당기면 더 멀리 날아갑니다. 쉬움 모드에서는 조준이 자동 보정됩니다.</div><button id="sound">🔊</button>
+</div>
+<div id="intro" class="overlay"><div class="card"><h1>⛲ 3D 코인 토스 v4</h1><p>입체 500원 스타일 동전과 실제 물리·조명·물 입자로 구현한 분수대 게임입니다.</p><div class="badges"><span class="badge">3D 금속 동전</span><span class="badge">실시간 그림자</span><span class="badge">물 입자</span><span class="badge">카메라 추적</span></div><div class="difficulty"><button id="easyBtn" class="active">쉬움</button><button id="normalBtn">보통</button></div><button id="start">게임 시작</button></div></div>
+<div id="end" class="overlay"><div class="card"><div id="grade">A</div><h1 style="font-size:31px">게임 종료</h1><p>최종 점수 <b id="final" style="font-size:28px;color:#ffe07a">0</b>점<br>최고 콤보 <b id="best">0</b>회</p><button id="restart">다시 하기</button><button id="backToFarm" style="margin-top:10px;background:rgba(255,255,255,.09);color:#fff;border:1px solid rgba(255,255,255,.18)">농장으로 돌아가기</button></div></div>
+<script type="module">
+import * as THREE from 'three';
+
+const $=id=>document.getElementById(id);
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;renderer.outputColorSpace=THREE.SRGBColorSpace;$('app').appendChild(renderer.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x8fc6df);scene.fog=new THREE.Fog(0x9cc9d7,24,68);
+const camera=new THREE.PerspectiveCamera(48,innerWidth/innerHeight,.1,130);camera.position.set(0,6.4,15.2);camera.lookAt(0,1,-4.6);
+const clock=new THREE.Clock();
+
+scene.add(new THREE.HemisphereLight(0xd9f3ff,0x496047,2.2));
+const sun=new THREE.DirectionalLight(0xfff1cf,3.7);sun.position.set(-8,15,8);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-18;sun.shadow.camera.right=18;sun.shadow.camera.top=18;sun.shadow.camera.bottom=-18;scene.add(sun);
+const rim=new THREE.DirectionalLight(0xa7dfff,1.5);rim.position.set(8,8,-10);scene.add(rim);
+
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(80,80),new THREE.MeshStandardMaterial({color:0x9c9485,roughness:.86,metalness:.02}));ground.rotation.x=-Math.PI/2;ground.position.y=-.05;ground.receiveShadow=true;scene.add(ground);
+const grid=new THREE.GridHelper(50,40,0x777063,0xb0a999);grid.position.y=-.035;grid.material.opacity=.18;grid.material.transparent=true;scene.add(grid);
+
+function cylinder(r1,r2,h,color,rough=.58,metal=.05){const m=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,96),new THREE.MeshStandardMaterial({color,roughness:rough,metalness:metal}));m.castShadow=m.receiveShadow=true;return m}
+const fountain=new THREE.Group();fountain.position.set(0,0,-5.2);scene.add(fountain);
+const base=cylinder(6.0,6.35,.72,0xcac1b2,.58);base.position.y=.35;fountain.add(base);
+const inner=cylinder(5.45,5.55,.36,0xded6c8,.45);inner.position.y=.76;fountain.add(inner);
+const water=new THREE.Mesh(new THREE.CylinderGeometry(5.2,5.2,.12,96),new THREE.MeshPhysicalMaterial({color:0x2aaed0,roughness:.13,metalness:.02,transmission:.12,transparent:true,opacity:.87,clearcoat:1,clearcoatRoughness:.08}));water.position.y=.94;water.receiveShadow=true;fountain.add(water);
+const pedestal=cylinder(1.0,1.28,1.0,0xc7beaf,.48);pedestal.position.y=1.34;fountain.add(pedestal);const bowl=cylinder(1.6,1.15,.35,0xd7cec0,.42);bowl.position.y=1.98;fountain.add(bowl);const stem=cylinder(.38,.52,2.35,0xc4baaa,.47);stem.position.y=3.25;fountain.add(stem);const topBowl=cylinder(1.1,.68,.28,0xd8cfc1,.4);topBowl.position.y=4.46;fountain.add(topBowl);
+// 조작 가능한 중앙 목표: 구조물 앞쪽의 실제 수면 구역
+const centerTarget=new THREE.Vector3(0,1.035,-2.95);
+const targetRing=new THREE.Mesh(new THREE.RingGeometry(.55,.78,64),new THREE.MeshBasicMaterial({color:0xffd75f,transparent:true,opacity:.78,side:THREE.DoubleSide,depthWrite:false}));targetRing.rotation.x=-Math.PI/2;targetRing.position.copy(centerTarget);scene.add(targetRing);
+const predictionRing=new THREE.Mesh(new THREE.RingGeometry(.38,.52,48),new THREE.MeshBasicMaterial({color:0x8eeeff,transparent:true,opacity:.9,side:THREE.DoubleSide,depthWrite:false}));predictionRing.rotation.x=-Math.PI/2;predictionRing.position.copy(centerTarget);predictionRing.visible=false;scene.add(predictionRing);
+
+// continuous high-pressure water jets
+const jetGroup=new THREE.Group();scene.add(jetGroup);
+const jetMat=new THREE.MeshPhysicalMaterial({color:0xd8fbff,roughness:.03,transmission:.72,transparent:true,opacity:.72,depthWrite:false,clearcoat:1,emissive:0x2b7f98,emissiveIntensity:.18});
+function addJet(points,r=.055){const curve=new THREE.CatmullRomCurve3(points);const tube=new THREE.Mesh(new THREE.TubeGeometry(curve,32,r,8,false),jetMat.clone());tube.material.opacity=.58+Math.random()*.18;tube.userData.phase=Math.random()*Math.PI*2;jetGroup.add(tube);return tube}
+const jetMeshes=[];
+for(let i=0;i<6;i++){const a=i/6*Math.PI*2,off=.10;jetMeshes.push(addJet([new THREE.Vector3(Math.cos(a)*off,4.58,-5.2+Math.sin(a)*off),new THREE.Vector3(Math.cos(a)*.22,6.25+Math.random()*.35,-5.2+Math.sin(a)*.22),new THREE.Vector3(Math.cos(a)*.48,7.15+Math.random()*.25,-5.2+Math.sin(a)*.48),new THREE.Vector3(Math.cos(a)*.72,5.45,-5.2+Math.sin(a)*.72)],.065))}
+for(let j=0;j<12;j++){const a=j/12*Math.PI*2,o=new THREE.Vector3(Math.cos(a)*1.18,2.1,Math.sin(a)*1.18-5.2),m=new THREE.Vector3(Math.cos(a)*3.0,5.0+Math.sin(j)*.18,Math.sin(a)*3.0-5.2),e=new THREE.Vector3(Math.cos(a)*5.0,1.08,Math.sin(a)*5.0-5.2);jetMeshes.push(addJet([o,m,e],.052))}
+const mistGeo=new THREE.SphereGeometry(.09,8,6),mistMat=new THREE.MeshBasicMaterial({color:0xe8fdff,transparent:true,opacity:.12,depthWrite:false});const mist=[];for(let i=0;i<38;i++){const m=new THREE.Mesh(mistGeo,mistMat.clone());m.position.set((Math.random()-.5)*2.1,4.3+Math.random()*2.8,-5.2+(Math.random()-.5)*2.1);m.scale.setScalar(.6+Math.random()*1.8);m.userData={phase:Math.random()*6.28,base:m.position.clone()};scene.add(m);mist.push(m)}
+
+// park trees
+for(let i=0;i<26;i++){const a=(i/26)*Math.PI*2,r=18+Math.sin(i*2.7)*2.5;const trunk=cylinder(.18,.28,2.6,0x6b4a2f,.9);trunk.position.set(Math.cos(a)*r,1.3,Math.sin(a)*r-3);scene.add(trunk);const crown=new THREE.Mesh(new THREE.IcosahedronGeometry(1.7+(i%3)*.25,2),new THREE.MeshStandardMaterial({color:i%2?0x3d7444:0x4d8250,roughness:.95}));crown.position.set(trunk.position.x,3.2,trunk.position.z);crown.castShadow=true;scene.add(crown)}
+
+function makeFaceTexture(front=true){const cv=document.createElement('canvas');cv.width=cv.height=1024;const q=cv.getContext('2d');const g=q.createRadialGradient(350,300,20,512,512,520);g.addColorStop(0,'#f5f7f5');g.addColorStop(.45,'#bec4c2');g.addColorStop(.82,'#7c8584');g.addColorStop(1,'#d7dcda');q.fillStyle=g;q.fillRect(0,0,1024,1024);q.strokeStyle='rgba(35,43,43,.4)';q.lineWidth=18;q.beginPath();q.arc(512,512,445,0,Math.PI*2);q.stroke();q.lineWidth=7;q.beginPath();q.arc(512,512,405,0,Math.PI*2);q.stroke();q.fillStyle='rgba(45,53,53,.72)';q.textAlign='center';q.textBaseline='middle';
+ if(front){
+  q.font='700 54px Arial';q.fillText('GAME COIN',512,155);
+  // stylized crane relief
+  q.save();q.translate(512,525);q.strokeStyle='rgba(50,58,58,.78)';q.fillStyle='rgba(210,215,212,.6)';q.lineCap='round';q.lineJoin='round';q.lineWidth=22;
+  q.beginPath();q.moveTo(-250,40);q.quadraticCurveTo(-105,-155,20,-30);q.quadraticCurveTo(120,-190,265,-80);q.quadraticCurveTo(135,-28,55,68);q.quadraticCurveTo(-10,150,-110,125);q.quadraticCurveTo(-40,70,-250,40);q.closePath();q.fill();q.stroke();
+  q.beginPath();q.moveTo(45,55);q.quadraticCurveTo(105,5,175,-40);q.lineTo(285,-65);q.stroke();q.beginPath();q.arc(300,-68,7,0,Math.PI*2);q.fillStyle='#303838';q.fill();
+  q.beginPath();q.moveTo(-15,115);q.lineTo(-45,240);q.moveTo(35,100);q.lineTo(75,235);q.stroke();q.restore();
+  q.font='700 48px Arial';q.fillText('CRANE',512,860);
+ }else{
+  q.font='900 300px Arial';q.fillText('500',512,475);q.font='800 82px Arial';q.fillText('WON',512,700);q.font='700 42px Arial';q.fillText('3D FOUNTAIN EDITION',512,840)
+ }
+ // brushed metal scratches
+ q.globalAlpha=.17;q.strokeStyle='#fff';q.lineWidth=2;for(let i=0;i<220;i++){const y=Math.random()*1024;q.beginPath();q.moveTo(Math.random()*180,y);q.lineTo(840+Math.random()*180,y+Math.random()*4-2);q.stroke()}q.globalAlpha=1;
+ const t=new THREE.CanvasTexture(cv);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=renderer.capabilities.getMaxAnisotropy();return t
+}
+const coinGroup=new THREE.Group();scene.add(coinGroup);const coinR=.58,coinT=.12;
+const sideMat=new THREE.MeshStandardMaterial({color:0xbcc4c2,metalness:.92,roughness:.22});
+const body=new THREE.Mesh(new THREE.CylinderGeometry(coinR,coinR,coinT,96,1,false),sideMat);body.rotation.z=Math.PI/2;body.castShadow=true;coinGroup.add(body);
+const frontMat=new THREE.MeshStandardMaterial({map:makeFaceTexture(true),metalness:.62,roughness:.3,bumpScale:.035});const backMat=new THREE.MeshStandardMaterial({map:makeFaceTexture(false),metalness:.62,roughness:.3});
+const faceGeo=new THREE.CircleGeometry(coinR*.985,96);const frontFace=new THREE.Mesh(faceGeo,frontMat);frontFace.rotation.y=Math.PI/2;frontFace.position.x=coinT/2+.003;coinGroup.add(frontFace);const backFace=new THREE.Mesh(faceGeo,backMat);backFace.rotation.y=-Math.PI/2;backFace.position.x=-coinT/2-.003;coinGroup.add(backFace);
+// ridged edge
+for(let i=0;i<64;i++){const a=i/64*Math.PI*2;const ridge=new THREE.Mesh(new THREE.BoxGeometry(coinT+.018,.018,.055),sideMat);ridge.position.set(0,Math.cos(a)*coinR,Math.sin(a)*coinR);ridge.rotation.x=a;coinGroup.add(ridge)}
+
+const particleGeo=new THREE.SphereGeometry(.045,8,6);const dropMat=new THREE.MeshPhysicalMaterial({color:0xd9fbff,roughness:.03,transmission:.62,transparent:true,opacity:.86,depthWrite:false,emissive:0x1d6a82,emissiveIntensity:.12});const fountainDrops=[];const splashDrops=[];
+function addDrop(list,pos,vel,life,size=1){const m=new THREE.Mesh(particleGeo,dropMat);m.scale.set(size*.78,size*(1.5+Math.min(2,vel.length()*.08)),size*.78);m.position.copy(pos);scene.add(m);list.push({m,v:vel,life,max:life,base:size})}
+function spawnFountain(){
+ const origin=new THREE.Vector3(0,4.62,-5.2);for(let i=0;i<7;i++)addDrop(fountainDrops,origin.clone().add(new THREE.Vector3((Math.random()-.5)*.28,0,(Math.random()-.5)*.28)),new THREE.Vector3((Math.random()-.5)*1.35,8.0+Math.random()*2.0,(Math.random()-.5)*1.35),1.75,.75+Math.random()*.75);
+ for(let j=0;j<12;j++){const a=j/12*Math.PI*2,origin2=new THREE.Vector3(Math.cos(a)*1.18,2.1,Math.sin(a)*1.18-5.2),dir=new THREE.Vector3(Math.cos(a)*(5.1+Math.random()*.4),5.0+Math.random()*.55,Math.sin(a)*(5.1+Math.random()*.4));for(let k=0;k<2;k++)addDrop(fountainDrops,origin2.clone().add(new THREE.Vector3((Math.random()-.5)*.08,0,(Math.random()-.5)*.08)),dir.clone().add(new THREE.Vector3((Math.random()-.5)*.25,(Math.random()-.5)*.25,(Math.random()-.5)*.25)),1.28,.72+Math.random()*.32)}
+}
+function splashAt(p,intensity=1){for(let i=0;i<70*intensity;i++){const a=Math.random()*Math.PI*2,s=1.2+Math.random()*4.8;addDrop(splashDrops,p.clone(),new THREE.Vector3(Math.cos(a)*s,2+Math.random()*5.5,Math.sin(a)*s),1.15,.7+Math.random()*1.1)}const ring=new THREE.Mesh(new THREE.RingGeometry(.15,.2,64),new THREE.MeshBasicMaterial({color:0xd8fbff,transparent:true,opacity:.85,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.copy(p).add(new THREE.Vector3(0,.02,0));scene.add(ring);rings.push({m:ring,life:1})}
+const rings=[];
+
+let score=0,coins=10,combo=0,best=0,wind=0,difficulty='easy',playing=false,drag=false,dragStart={x:0,y:0},dragNow={x:0,y:0};
+let state='ready',velocity=new THREE.Vector3(),angular=new THREE.Vector3(),cameraKick=0,follow=0,toastTimer,soundOn=true,audio;
+const readyPos=new THREE.Vector3(0,2.05,7.45);coinGroup.position.copy(readyPos);coinGroup.rotation.set(0,0,Math.PI/2);
+function hud(){$('score').textContent=score;$('coins').textContent=coins;$('combo').textContent='×'+combo;$('wind').textContent=Math.abs(wind).toFixed(1)+(wind<0?' ←':' →')}
+function newWind(){const spread=difficulty==='easy'?.55:1.35;wind=(Math.random()-.5)*spread;hud()}
+function toast(t,ms=1300){$('toast').textContent=t;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),ms)}
+function resetCoin(){state='ready';coinGroup.visible=true;coinGroup.position.copy(readyPos);coinGroup.rotation.set(0,0,Math.PI/2);velocity.set(0,0,0);angular.set(0,0,0);drag=false;$('fill').style.width='0%';$('powerValue').textContent='0%';predictionRing.visible=false;camera.position.lerp(new THREE.Vector3(0,6.7,15.0),1);camera.lookAt(0,1.55,-4.8)}
+function resetGame(){score=0;coins=10;combo=0;best=0;playing=true;$('intro').style.display='none';$('end').style.display='none';newWind();resetCoin();hud();toast(difficulty==='easy'?'파워 40% · 좌우 0에서 황금 목표를 노리세요':'예상 착수 원을 목표에 맞추세요',1900)}
+function pointer(e){const p=e.touches?e.touches[0]:e;return{x:p.clientX,y:p.clientY}}
+function down(e){if(!playing||state!=='ready')return;const p=pointer(e);drag=true;dragStart=p;dragNow=p;$('pullCue').style.opacity='0';e.preventDefault();tone(520,.04,.02)}
+function getLaunchSolution(dx,dy){
+ const maxDrag=difficulty==='easy'?300:255;
+ const pull=Math.max(0,dy); // 아래로 당긴 양이 주된 파워
+ const power=THREE.MathUtils.clamp(pull/maxDrag,0,1);
+ const launchPower=difficulty==='easy'?THREE.MathUtils.clamp(power,.05,1):THREE.MathUtils.clamp(power,.08,1);
+ const start=coinGroup.position.clone();
+ const lift=(difficulty==='easy'?4.7:4.9)+launchPower*(difficulty==='easy'?3.6:4.1);
+ const waterY=1.03,g=9.81;
+ const flightTime=(lift+Math.sqrt(lift*lift+2*g*Math.max(.01,start.y-waterY)))/g;
+ // 쉬움 40%에서 중앙 목표까지 정확히 도달. 최소~최대 비거리도 자연스럽게 확장.
+ const desiredDistance=difficulty==='easy'?(5.5+launchPower*12.25):(5.2+launchPower*13.6);
+ const targetZ=start.z-desiredDistance;
+ const lateralRange=difficulty==='easy'?4.2:5.0;
+ const targetX=THREE.MathUtils.clamp(-dx/maxDrag*lateralRange,-lateralRange,lateralRange);
+ const windAccel=wind*(difficulty==='easy'?.10:.20);
+ const vx=(targetX-start.x-.5*windAccel*flightTime*flightTime)/flightTime;
+ const vz=(targetZ-start.z)/flightTime;
+ return{power:launchPower,lift,flightTime,targetX,targetZ,vx,vz};
+}
+function move(e){if(!drag)return;dragNow=pointer(e);const dx=dragNow.x-dragStart.x,dy=Math.max(0,dragNow.y-dragStart.y),maxDrag=difficulty==='easy'?300:255,p=Math.min(1,dy/maxDrag);$('fill').style.width=p*100+'%';$('powerValue').textContent=Math.round(p*100)+'%';coinGroup.position.set(THREE.MathUtils.clamp(dx/195,-1.7,1.7),2.05-THREE.MathUtils.clamp(dy/310,0,.78),7.45+THREE.MathUtils.clamp(dy/620,0,.48));const sol=getLaunchSolution(dx,dy);predictionRing.position.set(sol.targetX,1.04,sol.targetZ);predictionRing.visible=true;predictionRing.material.color.setHex(Math.hypot(sol.targetX-centerTarget.x,sol.targetZ-centerTarget.z)<.55?0x7dff9d:0x8eeeff);e.preventDefault()}
+function up(e){if(!drag)return;drag=false;$('pullCue').style.opacity='';predictionRing.visible=false;const dx=dragNow.x-dragStart.x,dy=Math.max(0,dragNow.y-dragStart.y);if(dy<14){resetCoin();return}const sol=getLaunchSolution(dx,dy);velocity.set(sol.vx,sol.lift,sol.vz);angular.set(7+Math.random()*5,12+Math.random()*10,5+Math.random()*6);state='flight';coins--;cameraKick=1;follow=1;hud();tone(210,.13,.06,180);vibrate(18);e.preventDefault()}
+renderer.domElement.addEventListener('pointerdown',down);renderer.domElement.addEventListener('pointermove',move);addEventListener('pointerup',up);renderer.domElement.addEventListener('touchstart',down,{passive:false});renderer.domElement.addEventListener('touchmove',move,{passive:false});renderer.domElement.addEventListener('touchend',up,{passive:false});
+
+function resolveFountainCollision(prev){
+ const p=coinGroup.position,local=p.clone().sub(fountain.position),rCoin=.58;
+ const colliders=[{r:1.28,y0:.82,y1:1.86,re:.56},{r:1.62,y0:1.78,y1:2.18,re:.62},{r:.54,y0:2.02,y1:4.43,re:.68},{r:1.12,y0:4.28,y1:4.65,re:.62}];
+ for(const c of colliders){const d=Math.hypot(local.x,local.z),limit=c.r+rCoin;if(local.y>c.y0-rCoin*.25&&local.y<c.y1+rCoin*.25&&d<limit){let nx=local.x/(d||1),nz=local.z/(d||1);if(d<.001){const pv=prev.clone().sub(fountain.position);const pd=Math.hypot(pv.x,pv.z)||1;nx=pv.x/pd;nz=pv.z/pd}p.x=fountain.position.x+nx*(limit+.025);p.z=fountain.position.z+nz*(limit+.025);const n=new THREE.Vector3(nx,0,nz),vn=velocity.dot(n);if(vn<0)velocity.addScaledVector(n,-(1+c.re)*vn);velocity.y+=.45+Math.abs(vn)*.14;velocity.multiplyScalar(.86);angular.add(new THREE.Vector3((Math.random()-.5)*5,(Math.random()-.5)*7,(Math.random()-.5)*5));cameraKick=1;tone(260,.08,.045,90);vibrate(12);return true}}return false}
+
+function evaluate(){const basinLocal=coinGroup.position.clone().sub(fountain.position),basinD=Math.hypot(basinLocal.x,basinLocal.z),targetD=Math.hypot(coinGroup.position.x-centerTarget.x,coinGroup.position.z-centerTarget.z),assist=difficulty==='easy'?1.18:1;let pts=0,msg='분수대 밖으로 빗나갔습니다';if(targetD<.62*assist){pts=120;msg='정중앙 목표 안착! +120'}else if(targetD<1.35*assist){pts=70;msg='중앙 근접! +70'}else if(basinD<3.9*assist){pts=40;msg='좋은 투척! +40'}else if(basinD<5.35*assist){pts=20;msg='분수대 안착! +20'}if(pts){combo++;best=Math.max(best,combo);const bonus=(combo-1)*6;score+=pts+bonus;if(bonus)msg+=` · 콤보 +${bonus}`;splashAt(new THREE.Vector3(coinGroup.position.x,1.04,coinGroup.position.z),pts>=100?1.3:1);tone(pts>=100?820:630,.2,.08,-170);vibrate([15,22,12])}else{combo=0;tone(125,.23,.035,-50);vibrate(32)}hud();toast(msg,1500);state='landed';setTimeout(()=>{if(coins<=0)finish();else{newWind();resetCoin()}},1200)}
+function finish(){playing=false;$('final').textContent=score;$('best').textContent=best;$('grade').textContent=score>=900?'S':score>=650?'A':score>=400?'B':score>=220?'C':'D';$('end').style.display='flex';tone(score>=650?880:430,.45,.07,-120);reportToParent('finished',{score,best})}
+function reportToParent(type,data){try{parent.postMessage(Object.assign({source:'fountainCoinToss3D',type},data||{}),'*')}catch{}}
+$('exitBtn').onclick=()=>reportToParent('exit');
+$('backToFarm').onclick=()=>reportToParent('exit');
+function ensureAudio(){if(!audio)audio=new (window.AudioContext||window.webkitAudioContext)()}
+function tone(f,d,g=.04,slide=0){if(!soundOn)return;ensureAudio();const o=audio.createOscillator(),v=audio.createGain();o.type='triangle';o.frequency.setValueAtTime(f,audio.currentTime);o.frequency.linearRampToValueAtTime(f+slide,audio.currentTime+d);v.gain.setValueAtTime(g,audio.currentTime);v.gain.exponentialRampToValueAtTime(.0001,audio.currentTime+d);o.connect(v).connect(audio.destination);o.start();o.stop(audio.currentTime+d)}function vibrate(p){navigator.vibrate&&navigator.vibrate(p)}
+$('easyBtn').onclick=()=>{difficulty='easy';$('easyBtn').classList.add('active');$('normalBtn').classList.remove('active')};$('normalBtn').onclick=()=>{difficulty='normal';$('normalBtn').classList.add('active');$('easyBtn').classList.remove('active')};$('start').onclick=()=>{ensureAudio();resetGame()};$('restart').onclick=resetGame;$('sound').onclick=()=>{soundOn=!soundOn;$('sound').textContent=soundOn?'🔊':'🔇';if(soundOn)tone(650,.08,.04)};
+
+let spawnAcc=0;
+function updateParticles(dt,list,gravity){for(let i=list.length-1;i>=0;i--){const p=list[i];p.v.y-=gravity*dt;p.m.position.addScaledVector(p.v,dt);p.life-=dt;const k=Math.max(.15,p.life/p.max);p.m.scale.set((p.base||1)*.78*k,(p.base||1)*1.8*k,(p.base||1)*.78*k);if(p.life<=0||p.m.position.y<.9){scene.remove(p.m);p.m.geometry!==particleGeo&&p.m.geometry.dispose();list.splice(i,1)}}}
+function animate(){requestAnimationFrame(animate);const dt=Math.min(.03,clock.getDelta()),t=clock.elapsedTime;spawnAcc+=dt;if(spawnAcc>.042){spawnAcc=0;spawnFountain()};updateParticles(dt,fountainDrops,5.2);updateParticles(dt,splashDrops,9.2);
+ for(let i=rings.length-1;i>=0;i--){const r=rings[i];r.life-=dt;r.m.scale.addScalar(dt*3.8);r.m.material.opacity=Math.max(0,r.life*.8);if(r.life<=0){scene.remove(r.m);r.m.geometry.dispose();r.m.material.dispose();rings.splice(i,1)}}
+ water.material.opacity=.86+Math.sin(t*2.2)*.025;water.rotation.y=t*.08;targetRing.material.opacity=.62+.18*(.5+.5*Math.sin(t*3.2));targetRing.scale.setScalar(1+.055*Math.sin(t*3.2));jetMeshes.forEach((j,i)=>{j.material.opacity=.63+Math.sin(t*7+j.userData.phase)*.09;j.scale.set(1,1+Math.sin(t*5+i)*.012,1)});mist.forEach((m,i)=>{m.position.x=m.userData.base.x+Math.sin(t*.7+m.userData.phase)*.18;m.position.y=m.userData.base.y+Math.sin(t*.9+m.userData.phase)*.12;m.material.opacity=.07+.07*(.5+.5*Math.sin(t*1.3+i))});
+ if(state==='flight'){const prev=coinGroup.position.clone();velocity.x+=wind*dt*(difficulty==='easy'?.10:.20);velocity.y-=9.81*dt;coinGroup.position.addScaledVector(velocity,dt);resolveFountainCollision(prev);coinGroup.rotation.x+=angular.x*dt;coinGroup.rotation.y+=angular.y*dt;coinGroup.rotation.z+=angular.z*dt;const target=coinGroup.position.clone().add(new THREE.Vector3(0,2.3,6.3));camera.position.lerp(target,.055);camera.lookAt(coinGroup.position.x,Math.max(1,coinGroup.position.y),coinGroup.position.z-2.5);if(coinGroup.position.y<=1.03&&velocity.y<0)evaluate()}
+ else if(state==='ready'&&!drag){coinGroup.position.y=2.05+Math.sin(t*2.2)*.035;coinGroup.rotation.x+=dt*.22}
+ // subtle camera life
+ if(state!=='flight'){camera.position.x+=Math.sin(t*.45)*.0008;camera.lookAt(0,1.4,-4.8)}
+ renderer.render(scene,camera)}animate();
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,2))});hud();
+</script>
+</body></html>
