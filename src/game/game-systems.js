@@ -158,7 +158,9 @@ window.KOMSCO.GameSystems = {
       lastCheerSentDate:{},
       missionStreak:0,
       goldenCrop:null,
-      notifPermissionAsked:false
+      notifPermissionAsked:false,
+      minigamePlays:{fountain:{date:null,count:0},monument:{date:null,count:0}},
+      minigameBest:{fountain:0,monument:0}
     };
   }
 };
