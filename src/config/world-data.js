@@ -34,7 +34,9 @@ window.KOMSCO.WORLD={
   {node:"H2_ID",x:20.96,y:69.20,r:3.4,label:"ID본부",type:"work",reward:140,color:"#32c9ff"},
   {node:"H2_PAPER",x:79.88,y:69.20,r:3.4,label:"제지본부",type:"work",reward:130,color:"#54ed55"},
   {node:"FARM",x:51.95,y:68.56,r:3.7,label:"주말농장",type:"farm",color:"#fff17a"},
-  {node:"H3_SHOP",x:20.05,y:96.20,r:3.6,label:"씨앗상점",type:"shop",color:"#ff8a18"}
+  {node:"H3_SHOP",x:20.05,y:96.20,r:3.6,label:"씨앗상점",type:"shop",color:"#ff8a18"},
+  {node:"FOUNTAIN",x:51.95,y:94.3,r:3.6,label:"분수대 광장",type:"minigame",game:"coinToss",color:"#5cd6ff"},
+  {node:"MONUMENT",x:79.88,y:94.3,r:3.6,label:"석탑 광장",type:"minigame",game:"memoryMatch",color:"#ffd166"}
  ],
  farmPlots:[
   [46.0,43.0],[50.8,43.0],[55.3,43.0],
