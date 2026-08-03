@@ -875,58 +875,55 @@ function openMinigame(h){
  else if(h.game==="memoryMatch")openMemoryMatchGame(h);
 }
 
-/* ---- 분수대 광장: 동전 던지기 (타이밍 바) ---- */
+/* ---- 분수대 광장: 3D 동전 던지기 (전체화면 iframe 미니게임) ----
+   자체 Three.js 씬·조작·사운드를 가진 독립 실행형 미니게임이라 기존 작은 모달(#modal) 안에
+   넣지 않고 전체화면 iframe으로 띄운다. #gameShell 밖(<body> 직속)에 붙여서 세로모드 회전
+   트랜스폼의 영향을 받지 않게 하고(가상 조이스틱과 동일한 이유), 완료 결과는 postMessage로
+   돌려받는다. */
+const COIN_TOSS_URL="./minigames/fountain-coin-toss-3d/index.html";
+let coinTossFrame=null,coinTossMessageHandler=null;
+function closeCoinTossFrame(){
+ if(coinTossMessageHandler){removeEventListener("message",coinTossMessageHandler);coinTossMessageHandler=null}
+ if(coinTossFrame){coinTossFrame.remove();coinTossFrame=null}
+}
 function openCoinTossGame(h){
  const p=minigamePlaysToday("fountain");
  const remaining=Math.max(0,MINIGAME_DAILY_LIMIT-p.count);
  const best=minigameBest("fountain");
  if(remaining<=0){
-   openModal(`<h2>⛲ ${h.label} · 동전 던지기</h2><p>오늘 플레이 횟수를 모두 사용했습니다. 내일 다시 도전해주세요!</p><p style="opacity:.6;font-size:12px;">최고 등급: ${best>0?best+"점":"-"}</p>`);
+   openModal(`<h2>⛲ ${h.label} · 동전 던지기</h2><p>오늘 플레이 횟수를 모두 사용했습니다. 내일 다시 도전해주세요!</p><p style="opacity:.6;font-size:12px;">최고 점수: ${best>0?best.toLocaleString()+"점":"-"}</p>`);
    return;
  }
- openModal(`<h2>⛲ ${h.label} · 동전 던지기</h2>
-   <p style="opacity:.8;font-size:13px;">코인이 <b style="color:#ffd166;">황금 구간</b>을 지날 때 던지기 버튼을 눌러보세요!</p>
-   <div class="coin-toss-track"><div class="coin-toss-target"></div><div class="coin-toss-marker" id="coinMarker">🪙</div></div>
-   <button type="button" id="coinThrowBtn" class="ai-advisor-btn">던지기!</button>
-   <p id="coinResultText" style="min-height:20px;text-align:center;font-weight:800;"></p>
-   <p style="opacity:.6;font-size:12px;text-align:center;">오늘 남은 횟수: ${remaining}/${MINIGAME_DAILY_LIMIT} · 최고 등급: ${best>0?best+"점":"-"}</p>`);
- const marker=document.getElementById("coinMarker");
- const btn=document.getElementById("coinThrowBtn");
- if(!marker||!btn)return;
- const start=performance.now();
- const period=1100; // ms per full back-and-forth cycle
- let pos=0,raf=null;
- function frame(now){
-   const phase=((now-start)%period)/period;
-   pos=(Math.sin(phase*Math.PI*2-Math.PI/2)+1)/2; // 0..1, eases at both ends like a real swing
-   marker.style.left=`calc(${(pos*100).toFixed(2)}% - 18px)`;
-   raf=requestAnimationFrame(frame);
- }
- raf=requestAnimationFrame(frame);
- activeMinigameCleanup=()=>cancelAnimationFrame(raf);
- btn.addEventListener("click",()=>{
-   cancelAnimationFrame(raf);
-   activeMinigameCleanup=null;
-   resolveCoinToss(h,pos,p);
- },{once:true});
+ closeCoinTossFrame(); // 혹시 남아있던 이전 프레임/리스너 잔재를 먼저 정리
+ const frame=document.createElement("iframe");
+ frame.src=COIN_TOSS_URL;
+ frame.title="분수대 동전 던지기";
+ frame.style.cssText="position:fixed;inset:0;width:100vw;height:100vh;border:0;z-index:200;background:#071522";
+ frame.allow="autoplay";
+ document.body.appendChild(frame);
+ coinTossFrame=frame;
+ coinTossMessageHandler=e=>{
+   if(e.source!==frame.contentWindow||!e.data||e.data.source!=="fountainCoinToss3D")return;
+   if(e.data.type==="finished"){
+     // 내부 "다시 하기" 버튼으로 같은 iframe 안에서 여러 판을 이어 할 수 있으므로, 매 판 완료마다
+     // 다시 한 번 일일 한도를 검사한다 -- openCoinTossGame 진입 시점 검사만으로는 우회될 수 있다.
+     if(p.count>=MINIGAME_DAILY_LIMIT){toast("오늘 플레이 횟수를 모두 사용했습니다.");closeCoinTossFrame();return}
+     resolveCoinToss3D(h,e.data.score||0,p);
+     if(p.count>=MINIGAME_DAILY_LIMIT){toast("오늘의 마지막 플레이를 완료했습니다!");closeCoinTossFrame()}
+   }else if(e.data.type==="exit"){
+     closeCoinTossFrame();
+   }
+ };
+ addEventListener("message",coinTossMessageHandler);
 }
-function resolveCoinToss(h,pos,p){
+function resolveCoinToss3D(h,score,p){
  p.count++;
- const dist=Math.abs(pos-0.5);
- let tierLabel,tierScore;
- if(dist<=0.035){tierLabel="🌟 퍼펙트!";tierScore=220}
- else if(dist<=0.09){tierLabel="👏 그레이트!";tierScore=140}
- else if(dist<=0.17){tierLabel="🙂 굿";tierScore=70}
- else{tierLabel="아깝네요";tierScore=15}
- if(tierScore>minigameBest("fountain"))state.minigameBest.fountain=tierScore;
- const gold=grantMinigameGold(tierScore);
+ const reward=Math.min(600,Math.max(20,Math.round(score*0.4)));
+ const gold=grantMinigameGold(reward);
+ if(score>minigameBest("fountain"))state.minigameBest.fountain=score;
  save();
- playSfx(tierScore>=140?"jackpot":tierScore>=70?"success":"fail");
- const remaining=Math.max(0,MINIGAME_DAILY_LIMIT-p.count);
- openModal(`<h2>⛲ ${h.label} 결과</h2><p style="font-size:20px;font-weight:900;text-align:center;">${tierLabel}</p><div class="share-link-box" style="text-align:center;font-size:22px;">🎁 +${gold.toLocaleString()}G</div><p style="opacity:.6;font-size:12px;text-align:center;">오늘 남은 횟수: ${remaining}/${MINIGAME_DAILY_LIMIT}</p>${remaining>0?'<button type="button" id="coinAgainBtn" class="ai-advisor-btn">다시 던지기</button>':""}`);
- toast(`${h.label} · ${tierLabel} +${gold.toLocaleString()}G`);
- const againBtn=document.getElementById("coinAgainBtn");
- if(againBtn)againBtn.addEventListener("click",()=>openCoinTossGame(h));
+ playSfx(score>=650?"jackpot":score>=300?"success":"fail");
+ toast(`${h.label} · 최종 ${score.toLocaleString()}점 · +${gold.toLocaleString()}G`);
 }
 
 /* ---- 석탑 광장: 기억력 카드 짝맞추기 ---- */
@@ -1457,12 +1454,20 @@ addEventListener("selectstart",e=>e.preventDefault());
 addEventListener("copy",e=>e.preventDefault());
 const MOVE_KEYS=new Set(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","w","a","s","d"]);
 addEventListener("resize",resize);
-addEventListener("orientationchange",()=>{
-  // iOS/Android often report stale innerWidth/innerHeight the instant orientationchange fires;
-  // re-measure shortly after the browser finishes its own layout pass so the dpad/HUD realign correctly.
+function scheduleResizeSettle(){
+  resize(); // apply right away in case the browser's metrics are already correct
+  // ...and again shortly after, in case they weren't yet (iOS/Android often report stale
+  // innerWidth/innerHeight for a frame or two right after a layout-changing event like this).
   clearTimeout(resizeSettleTimer);
   resizeSettleTimer=setTimeout(resize,120);
-});
+}
+addEventListener("orientationchange",scheduleResizeSettle);
+// Exiting fullscreen (back gesture, browser/OS UI, etc.) shrinks the visible viewport but is a
+// separate event from orientationchange/resize on many mobile browsers -- without this, the
+// canvas could stay sized/positioned for the old (fullscreen) viewport, leaving touches on the
+// now-uncovered edge of the screen silently missed (they never reach the canvas element).
+document.addEventListener("fullscreenchange",scheduleResizeSettle);
+document.addEventListener("webkitfullscreenchange",scheduleResizeSettle); // older iOS/Android WebViews
 if(window.visualViewport){
   // Fires specifically when a mobile browser's address bar/toolbar shows or hides, changing
   // the truly-visible viewport -- a plain window 'resize' event doesn't always fire for this,
@@ -1549,10 +1554,21 @@ keys: ↑${keys.ArrowUp||keys.w?1:0} ↓${keys.ArrowDown||keys.s?1:0} ←${keys.
 moveAccel: ${moveAccel.toFixed(2)}
 autoPath: ${autoPath.length}`;
 }
+let lastViewportCheckVW=innerWidth,lastViewportCheckVH=innerHeight,lastViewportCheckAt=0;
+function viewportWatchdogTick(now){
+ if(now-lastViewportCheckAt<500)return; // cheap poll, no need to check every single frame
+ lastViewportCheckAt=now;
+ const vw=window.visualViewport?Math.round(visualViewport.width):innerWidth;
+ const vh=window.visualViewport?Math.round(visualViewport.height):innerHeight;
+ if(Math.abs(vw-lastViewportCheckVW)>2||Math.abs(vh-lastViewportCheckVH)>2){
+   lastViewportCheckVW=vw;lastViewportCheckVH=vh;
+   resize(); // viewport actually changed size (e.g. fullscreen exit) but no resize event caught it
+ }
+}
 function loop(now){
  const dt=Math.min(.04,Math.max(0,(now-last)/1000));
  last=now;
- if(!document.hidden){update(dt);draw();updateDebugOverlay();joystickWatchdogTick();}
+ if(!document.hidden){update(dt);draw();updateDebugOverlay();joystickWatchdogTick();viewportWatchdogTick(now);}
  requestAnimationFrame(loop);
 }
 document.addEventListener("visibilitychange",()=>{last=performance.now();});
