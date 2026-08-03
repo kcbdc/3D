@@ -621,7 +621,7 @@ function startAuto(h){
  setAutoActive(true);
  toast(`${h.label} 경로 안내를 시작합니다.`);
 }
-function interact(){const h=getNear();if(!h){toast("상호작용 원 안으로 이동하세요.");return}if(h.type==="work")doWork(h);if(h.type==="shop")openShop();if(h.type==="farm")openFarm()}
+function interact(){const h=getNear();if(!h){toast("상호작용 원 안으로 이동하세요.");return}if(h.type==="work")doWork(h);if(h.type==="shop")openShop();if(h.type==="farm")openFarm();if(h.type==="minigame")openMinigame(h)}
 async function doWork(h){
  const threat=state.institutionThreats[h.node];
  if(threat&&gameNow()<threat.expiresAt){openThreatResponse(h,threat);return}
@@ -843,6 +843,161 @@ async function showAiHint(m){
  }catch{
    box.innerHTML=`<b>🤖 AI 조달 자문관</b><br>${escapeHtml(offlineTip)}`;
  }
+}
+/* ===================== 광장 미니게임 (분수대: 동전 던지기 / 석탑: 기억력 카드 짝맞추기) =====================
+   두 미니게임 모두 하루 최대 MINIGAME_DAILY_LIMIT회로 제한해 골드 파밍을 막고, 최고 기록은 날짜와
+   무관하게 영구 보관한다(state.minigamePlays는 오늘 날짜 기준으로 매일 초기화, state.minigameBest는
+   누적). 기존 상태에 필드가 없는 이전 세이브도 안전하게 동작하도록 지연 초기화(lazy-init) 방식을 쓴다. */
+const MINIGAME_DAILY_LIMIT=5;
+function minigamePlaysToday(key){
+ if(!state.minigamePlays)state.minigamePlays={};
+ const today=todayStr();
+ let p=state.minigamePlays[key];
+ if(!p||p.date!==today)p={date:today,count:0};
+ state.minigamePlays[key]=p;
+ return p;
+}
+function minigameBest(key){
+ if(!state.minigameBest)state.minigameBest={};
+ if(state.minigameBest[key]==null)state.minigameBest[key]=0;
+ return state.minigameBest[key];
+}
+function minigameRewardMultiplier(){
+ return CHARS[state.character].reward*(1+state.prestigeLevel*SYS.prestigeBonusPerLevel)*getLuckyHourMultiplier();
+}
+function grantMinigameGold(reward){
+ const gold=Math.max(1,Math.round(reward*minigameRewardMultiplier()));
+ state.gold+=gold;state.stats.lifetimeGoldEarned+=gold;recalcLevel();flashGold();
+ return gold;
+}
+function openMinigame(h){
+ if(h.game==="coinToss")openCoinTossGame(h);
+ else if(h.game==="memoryMatch")openMemoryMatchGame(h);
+}
+
+/* ---- 분수대 광장: 동전 던지기 (타이밍 바) ---- */
+function openCoinTossGame(h){
+ const p=minigamePlaysToday("fountain");
+ const remaining=Math.max(0,MINIGAME_DAILY_LIMIT-p.count);
+ const best=minigameBest("fountain");
+ if(remaining<=0){
+   openModal(`<h2>⛲ ${h.label} · 동전 던지기</h2><p>오늘 플레이 횟수를 모두 사용했습니다. 내일 다시 도전해주세요!</p><p style="opacity:.6;font-size:12px;">최고 등급: ${best>0?best+"점":"-"}</p>`);
+   return;
+ }
+ openModal(`<h2>⛲ ${h.label} · 동전 던지기</h2>
+   <p style="opacity:.8;font-size:13px;">코인이 <b style="color:#ffd166;">황금 구간</b>을 지날 때 던지기 버튼을 눌러보세요!</p>
+   <div class="coin-toss-track"><div class="coin-toss-target"></div><div class="coin-toss-marker" id="coinMarker">🪙</div></div>
+   <button type="button" id="coinThrowBtn" class="ai-advisor-btn">던지기!</button>
+   <p id="coinResultText" style="min-height:20px;text-align:center;font-weight:800;"></p>
+   <p style="opacity:.6;font-size:12px;text-align:center;">오늘 남은 횟수: ${remaining}/${MINIGAME_DAILY_LIMIT} · 최고 등급: ${best>0?best+"점":"-"}</p>`);
+ const marker=document.getElementById("coinMarker");
+ const btn=document.getElementById("coinThrowBtn");
+ if(!marker||!btn)return;
+ const start=performance.now();
+ const period=1100; // ms per full back-and-forth cycle
+ let pos=0,raf=null;
+ function frame(now){
+   const phase=((now-start)%period)/period;
+   pos=(Math.sin(phase*Math.PI*2-Math.PI/2)+1)/2; // 0..1, eases at both ends like a real swing
+   marker.style.left=`calc(${(pos*100).toFixed(2)}% - 18px)`;
+   raf=requestAnimationFrame(frame);
+ }
+ raf=requestAnimationFrame(frame);
+ activeMinigameCleanup=()=>cancelAnimationFrame(raf);
+ btn.addEventListener("click",()=>{
+   cancelAnimationFrame(raf);
+   activeMinigameCleanup=null;
+   resolveCoinToss(h,pos,p);
+ },{once:true});
+}
+function resolveCoinToss(h,pos,p){
+ p.count++;
+ const dist=Math.abs(pos-0.5);
+ let tierLabel,tierScore;
+ if(dist<=0.035){tierLabel="🌟 퍼펙트!";tierScore=220}
+ else if(dist<=0.09){tierLabel="👏 그레이트!";tierScore=140}
+ else if(dist<=0.17){tierLabel="🙂 굿";tierScore=70}
+ else{tierLabel="아깝네요";tierScore=15}
+ if(tierScore>minigameBest("fountain"))state.minigameBest.fountain=tierScore;
+ const gold=grantMinigameGold(tierScore);
+ save();
+ playSfx(tierScore>=140?"jackpot":tierScore>=70?"success":"fail");
+ const remaining=Math.max(0,MINIGAME_DAILY_LIMIT-p.count);
+ openModal(`<h2>⛲ ${h.label} 결과</h2><p style="font-size:20px;font-weight:900;text-align:center;">${tierLabel}</p><div class="share-link-box" style="text-align:center;font-size:22px;">🎁 +${gold.toLocaleString()}G</div><p style="opacity:.6;font-size:12px;text-align:center;">오늘 남은 횟수: ${remaining}/${MINIGAME_DAILY_LIMIT}</p>${remaining>0?'<button type="button" id="coinAgainBtn" class="ai-advisor-btn">다시 던지기</button>':""}`);
+ toast(`${h.label} · ${tierLabel} +${gold.toLocaleString()}G`);
+ const againBtn=document.getElementById("coinAgainBtn");
+ if(againBtn)againBtn.addEventListener("click",()=>openCoinTossGame(h));
+}
+
+/* ---- 석탑 광장: 기억력 카드 짝맞추기 ---- */
+function openMemoryMatchGame(h){
+ const p=minigamePlaysToday("monument");
+ const remaining=Math.max(0,MINIGAME_DAILY_LIMIT-p.count);
+ const best=minigameBest("monument");
+ if(remaining<=0){
+   openModal(`<h2>🗿 ${h.label} · 기억력 카드 짝맞추기</h2><p>오늘 플레이 횟수를 모두 사용했습니다. 내일 다시 도전해주세요!</p><p style="opacity:.6;font-size:12px;">최고 기록: ${best>0?best+"회":"-"}</p>`);
+   return;
+ }
+ const SYMBOLS=["🪙","💵","📜","🏛️","🖋️","🎖️"];
+ const cards=shuffleArray([...SYMBOLS,...SYMBOLS]);
+ let flipped=[],matched=new Set(),moves=0,lockBoard=false,flipTimeout=null;
+ activeMinigameCleanup=()=>clearTimeout(flipTimeout);
+ const cardsHtml=cards.map((_,i)=>`<button type="button" class="memory-card" data-idx="${i}">❔</button>`).join("");
+ openModal(`<h2>🗿 ${h.label} · 기억력 카드 짝맞추기</h2>
+   <p style="opacity:.8;font-size:13px;">같은 카드 두 장을 짝지어 모두 맞춰보세요! 적은 횟수로 끝낼수록 보상이 커집니다.</p>
+   <div class="memory-grid" id="memoryGrid">${cardsHtml}</div>
+   <p id="memoryMovesText" style="text-align:center;font-weight:800;">시도: 0회</p>
+   <p style="opacity:.6;font-size:12px;text-align:center;">오늘 남은 횟수: ${remaining}/${MINIGAME_DAILY_LIMIT} · 최고 기록: ${best>0?best+"회":"-"}</p>`);
+ const grid=document.getElementById("memoryGrid");
+ const movesText=document.getElementById("memoryMovesText");
+ if(!grid)return;
+ grid.querySelectorAll(".memory-card").forEach(cardBtn=>{
+   cardBtn.addEventListener("click",()=>{
+     const idx=+cardBtn.dataset.idx;
+     if(lockBoard||matched.has(idx)||flipped.some(f=>f.idx===idx))return;
+     cardBtn.textContent=cards[idx];
+     cardBtn.classList.add("flipped");
+     flipped.push({idx,btn:cardBtn});
+     if(flipped.length<2)return;
+     moves++;
+     if(movesText)movesText.textContent=`시도: ${moves}회`;
+     lockBoard=true;
+     const[a,b]=flipped;
+     if(cards[a.idx]===cards[b.idx]){
+       matched.add(a.idx);matched.add(b.idx);
+       a.btn.classList.add("matched");b.btn.classList.add("matched");
+       flipped=[];lockBoard=false;
+       playSfx("success");
+       if(matched.size===cards.length)flipTimeout=setTimeout(()=>finishMemoryGame(h,moves,p),400);
+     }else{
+       playSfx("fail");
+       flipTimeout=setTimeout(()=>{
+         a.btn.classList.remove("flipped");a.btn.textContent="❔";
+         b.btn.classList.remove("flipped");b.btn.textContent="❔";
+         flipped=[];lockBoard=false;
+       },700);
+     }
+   });
+ });
+}
+function finishMemoryGame(h,moves,p){
+ activeMinigameCleanup=null;
+ p.count++;
+ let tierLabel,tierScore;
+ if(moves<=8){tierLabel="🌟 완벽해요!";tierScore=220}
+ else if(moves<=12){tierLabel="👏 훌륭해요!";tierScore=140}
+ else if(moves<=18){tierLabel="🙂 좋아요";tierScore=70}
+ else{tierLabel="수고하셨어요";tierScore=30}
+ const best=minigameBest("monument");
+ if(!best||moves<best)state.minigameBest.monument=moves;
+ const gold=grantMinigameGold(tierScore);
+ save();
+ playSfx(tierScore>=140?"jackpot":tierScore>=70?"success":"fail");
+ const remaining=Math.max(0,MINIGAME_DAILY_LIMIT-p.count);
+ openModal(`<h2>🗿 ${h.label} 결과</h2><p style="font-size:20px;font-weight:900;text-align:center;">${tierLabel}</p><p style="text-align:center;">${moves}회 만에 완료!</p><div class="share-link-box" style="text-align:center;font-size:22px;">🎁 +${gold.toLocaleString()}G</div><p style="opacity:.6;font-size:12px;text-align:center;">오늘 남은 횟수: ${remaining}/${MINIGAME_DAILY_LIMIT}</p>${remaining>0?'<button type="button" id="memoryAgainBtn" class="ai-advisor-btn">다시 도전</button>':""}`);
+ toast(`${h.label} · ${tierLabel} +${gold.toLocaleString()}G`);
+ const againBtn=document.getElementById("memoryAgainBtn");
+ if(againBtn)againBtn.addEventListener("click",()=>openMemoryMatchGame(h));
 }
 function openShop(){const featured=getWeeklyFeaturedSeed();let html="<h2>🌱 씨앗상점</h2><p style=\"opacity:.75;font-size:12px;\">🌟 이번 주 특가 작물은 수확 보상이 20% 늘어납니다.</p><div class='shop-grid'>";for(const[id,s]of Object.entries(SEEDS)){const locked=state.level<s.unlock;const isFeatured=id===featured;html+=`<article class="item shop-item" ${isFeatured?'style="border-color:#ffd166;box-shadow:0 0 10px rgba(255,209,102,.5);"':""}><h3>${s.emoji} ${s.name}${isFeatured?" 🌟":""}</h3><p><b>${locked?`🔒 Lv.${s.unlock} 필요`:s.price.toLocaleString()+"G"}</b></p><button type="button" data-buy="${id}" ${locked?"disabled":""}>${locked?"잠김":"구매"}</button></article>`}html+="</div><h2>🛠️ 농장 도구</h2><div class='shop-grid'>";for(const[id,u]of Object.entries(SYS.upgrades)){const owned=state.upgrades[id];const locked=state.level<u.unlock;html+=`<article class="item shop-item"><h3>${u.icon} ${u.name}</h3><p>${u.desc}</p><p><b>${owned?"보유 중":locked?`🔒 Lv.${u.unlock} 필요`:u.cost.toLocaleString()+"G"}</b></p><button type="button" data-upgrade="${id}" ${owned||locked?"disabled":""}>${owned?"구매완료":locked?"잠김":"구매"}</button></article>`}html+="</div>";openModal(html);document.querySelectorAll("[data-buy]").forEach(b=>b.addEventListener("click",()=>buySeed(b.dataset.buy)));document.querySelectorAll("[data-upgrade]").forEach(b=>b.addEventListener("click",()=>buyUpgrade(b.dataset.upgrade)))}
 function buyUpgrade(id){const u=SYS.upgrades[id];if(state.level<u.unlock){toast(`레벨 ${u.unlock} 이상부터 구매할 수 있습니다.`);return}if(state.upgrades[id]){toast("이미 보유한 도구입니다.");return}if(state.gold<u.cost){toast("골드가 부족합니다.");return}state.gold-=u.cost;state.upgrades[id]=true;save();toast(`${u.icon} ${u.name} 구매 완료!`);flashGold();playSfx("buy");openShop()}
@@ -1152,7 +1307,8 @@ function playSfx(name){
    case"badge":playTone(784,.1,"sine",0);playTone(1047,.2,"sine",.1);break;
  }
 }
-function openModal(html){ui("modalBody").innerHTML=html;ui("modal").classList.add("show")}function closeModal(){ui("modal").classList.remove("show")}function toast(t){ui("toast").textContent=t;ui("toast").classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>ui("toast").classList.remove("show"),1700)}
+let activeMinigameCleanup=null;
+function openModal(html){if(activeMinigameCleanup){activeMinigameCleanup();activeMinigameCleanup=null}ui("modalBody").innerHTML=html;ui("modal").classList.add("show")}function closeModal(){if(activeMinigameCleanup){activeMinigameCleanup();activeMinigameCleanup=null}ui("modal").classList.remove("show")}function toast(t){ui("toast").textContent=t;ui("toast").classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>ui("toast").classList.remove("show"),1700)}
 function save(){localStorage.setItem("komscoExactMapFullscreenRouteV9",JSON.stringify(state))}
 function load(){
  try{
@@ -1208,6 +1364,18 @@ function buildCards(){const desc={hunmin:"업무와 농장 성장이 균형 잡�
 // The joystick graphic appears at the exact point the drag started, then a thumb follows the
 // drag within a clamped radius. It only arms when the press lands directly on the canvas -- any
 // tap that hits a button/panel layered on top never gets hijacked into a movement drag.
+//
+// IMPORTANT -- stuck-input hardening:
+// pointerdown only arms a new drag when `joystickPointerId` is null, so that a second finger (or
+// a stray event) can't hijack an in-progress drag. That guard is only safe if we can GUARANTEE
+// `joystickPointerId` always gets cleared again. In practice a real device's "the drag ended"
+// event can go missing in several ways -- a mission modal opening mid-drag, an orientation
+// change, the OS interrupting the gesture, the tab losing focus while a finger is still down --
+// and if that happens with only a single pointerup/pointercancel listener on the canvas, the
+// pointer id is orphaned forever and every touch/click after that is silently ignored (looks
+// exactly like "movement stops responding after playing for a while"). Several independent
+// recovery paths below all funnel into the same joystickHide() so any one of them is enough to
+// unstick things.
 let joystickPointerId=null;
 const joystickOrigin={x:0,y:0};
 const JOY_RADIUS=52; // px of drag before the input vector is fully saturated (magnitude 1)
@@ -1221,13 +1389,24 @@ function joystickShow(x,y){
  if(thumb)thumb.style.transform="translate(0px,0px)";
 }
 function joystickHide(){
+ try{if(joystickPointerId!==null)canvas.releasePointerCapture?.(joystickPointerId)}catch{} // no-op if already released/invalid
  ui("virtualJoystick")?.classList.remove("active");
  joystickVec.x=0;joystickVec.y=0;
  joystickPointerId=null;
 }
+// Runs every animation frame (called from loop()). A held-still joystick can legitimately go a
+// long time with zero pointermove events, so we don't use a timeout to detect a stuck drag --
+// instead we ask the browser directly whether the canvas still actually holds capture for this
+// pointer. If it doesn't (silently dropped -- see comment above bindJoystick), release instantly.
+// This can never misfire on a real, steady, still-held press, only on a genuinely lost capture.
+function joystickWatchdogTick(){
+ if(joystickPointerId===null)return;
+ if(canvas.hasPointerCapture&&!canvas.hasPointerCapture(joystickPointerId))joystickHide();
+}
 function bindJoystick(){
  if(!canvas)return;
  canvas.addEventListener("pointerdown",e=>{
+   if(!started)return; // don't arm during loading/character-select, before gameplay actually begins
    if(e.target!==canvas)return; // never steal a tap that landed on a UI element above the canvas
    if(joystickPointerId!==null)return; // ignore extra fingers/buttons while a drag is already active
    if(autoPath.length){autoPath=[];currentEdge=null;setAutoActive(false)} // manual input takes over instantly, no stale route/edge
@@ -1253,6 +1432,25 @@ function bindJoystick(){
  canvas.addEventListener("pointerup",endDrag);
  canvas.addEventListener("pointercancel",endDrag);
  canvas.addEventListener("pointerleave",endDrag);
+ // The canvas is the pointer-capture target, so this is the listener that actually catches a
+ // capture being silently dropped by the browser without a matching pointerup/pointercancel --
+ // this is the single most important line for not getting permanently stuck (see comment above).
+ canvas.addEventListener("lostpointercapture",endDrag);
+ // Belt-and-suspenders: if the release event somehow fires on a different target than the
+ // canvas (observed on some mobile browsers once another element -- e.g. a modal -- has been
+ // shown on top mid-drag), catch it at the window level too.
+ addEventListener("pointerup",endDrag);
+ addEventListener("pointercancel",endDrag);
+ // A modal (mission popup, shop, etc.) can legitimately open while a finger is still down; force
+ // a clean release the moment it appears so the drag can never "leak" input into it, and so the
+ // next tap always starts from a known-good state.
+ const modalObserver=new MutationObserver(()=>{if(joystickPointerId!==null&&ui("modal")?.classList.contains("show"))joystickHide()});
+ if(ui("modal"))modalObserver.observe(ui("modal"),{attributes:true,attributeFilter:["class"]});
+ // Backgrounding the tab/app (notification, app switch, screen lock) never guarantees a pointerup
+ // for a finger that was down at the time -- reset on the way out so nothing is left stuck when
+ // the player comes back.
+ addEventListener("blur",joystickHide);
+ document.addEventListener("visibilitychange",()=>{if(document.hidden)joystickHide()});
 }
 addEventListener("contextmenu",e=>e.preventDefault());
 addEventListener("selectstart",e=>e.preventDefault());
@@ -1281,6 +1479,9 @@ addEventListener("keydown",e=>{
   if(e.key==="e"||e.key==="Enter")interact()
 });
 addEventListener("keyup",e=>keys[e.key]=false);
+function resetAllKeys(){for(const k in keys)keys[k]=false}
+addEventListener("blur",resetAllKeys);
+document.addEventListener("visibilitychange",()=>{if(document.hidden)resetAllKeys()});
 bindJoystick();
 ui("interactBtn").addEventListener("click",interact);
 ui("autoBtn").addEventListener("click",()=>{
@@ -1351,7 +1552,7 @@ autoPath: ${autoPath.length}`;
 function loop(now){
  const dt=Math.min(.04,Math.max(0,(now-last)/1000));
  last=now;
- if(!document.hidden){update(dt);draw();updateDebugOverlay();}
+ if(!document.hidden){update(dt);draw();updateDebugOverlay();joystickWatchdogTick();}
  requestAnimationFrame(loop);
 }
 document.addEventListener("visibilitychange",()=>{last=performance.now();});

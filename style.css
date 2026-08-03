@@ -156,6 +156,15 @@ html,body,#gameShell{min-width:1px;min-height:1px}
 .ai-hint-box{margin-top:8px;padding:11px;border-radius:10px;background:#1b1440;color:#f1eaff!important;font-size:13px;line-height:1.5;border:1px solid rgba(196,181,253,.4)}
 #goldText.flash{animation:goldFlash .5s ease}
 .share-link-box{margin:10px 0;padding:12px;border-radius:10px;background:#0e2038;border:1px solid rgba(104,178,255,.35);word-break:break-all;font-size:13px;color:#cfe8ff}
+/* 분수대 광장: 동전 던지기 미니게임 */
+.coin-toss-track{position:relative;height:64px;margin:14px 0;border-radius:14px;background:linear-gradient(90deg,#0e2038,#123356,#0e2038);border:1px solid rgba(104,178,255,.35);overflow:hidden}
+.coin-toss-target{position:absolute;left:42%;top:0;bottom:0;width:16%;background:rgba(255,209,102,.25);border-left:2px solid #ffd166;border-right:2px solid #ffd166}
+.coin-toss-marker{position:absolute;top:50%;left:0;width:36px;height:36px;margin-top:-18px;display:flex;align-items:center;justify-content:center;font-size:26px;filter:drop-shadow(0 0 8px #ffe17a)}
+/* 석탑 광장: 기억력 카드 짝맞추기 미니게임 */
+.memory-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0}
+.memory-card{aspect-ratio:1;font-size:24px;border-radius:10px;border:1px solid rgba(104,178,255,.35);background:#13213a;color:#fff;display:flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s,opacity .15s;padding:0}
+.memory-card.flipped{background:#1971b8}
+.memory-card.matched{background:#1a5c3a;border-color:#3ade7c;opacity:.85}
 .share-grid{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
 .share-chip{flex:1 1 calc(50% - 5px);min-width:140px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 10px;border-radius:12px;background:#0e2038;border:1px solid rgba(104,178,255,.35);color:#f8fbff!important;font-weight:700;font-size:15px;text-decoration:none;cursor:pointer}
 .share-chip-copy{border:0;font:inherit}
