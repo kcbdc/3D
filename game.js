@@ -539,8 +539,16 @@ function update(dt){
       dy=0;
     }
   }else{
-    const targetX=(keys.ArrowRight||keys.d?1:0)-(keys.ArrowLeft||keys.a?1:0)+joystickVec.x;
-    const targetY=(keys.ArrowDown||keys.s?1:0)-(keys.ArrowUp||keys.w?1:0)+joystickVec.y;
+    let targetX=(keys.ArrowRight||keys.d?1:0)-(keys.ArrowLeft||keys.a?1:0)+joystickVec.x;
+    let targetY=(keys.ArrowDown||keys.s?1:0)-(keys.ArrowUp||keys.w?1:0)+joystickVec.y;
+    if(matchMedia("(orientation:portrait)").matches){
+      // #gameShell is rotated 90deg clockwise on screen (see the portrait media query in
+      // style.css). A local/world-space direction (lx,ly) renders on screen as (-ly,lx) under
+      // that rotation, so to convert the player's raw screen-space input back into the matching
+      // world-space direction we need the inverse: (worldX,worldY) = (screenY,-screenX).
+      const rotX=targetY,rotY=-targetX;
+      targetX=rotX;targetY=rotY;
+    }
     const moving=Math.hypot(targetX,targetY)>.05;
     // Ease the input direction (turnLerp) and the speed ramp (moveAccel) toward their targets
     // each frame instead of snapping instantly -- this is what makes starting, stopping, and
