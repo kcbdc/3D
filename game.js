@@ -1156,11 +1156,13 @@ function openSettingsPanel(){
    <button type="button" id="notifPermBtn" class="ai-advisor-btn" ${permState==="granted"||permState==="denied"?"disabled":""}>${permLabel}</button>
    <p style="opacity:.65;font-size:12px;margin:6px 0 14px;">브라우저 알림을 켜면 화면을 안 보고 있어도(탭이 열려있는 동안) 작물이 다 자랐을 때·쪽지가 왔을 때 알려드려요.</p>
    <button type="button" id="achievementsBtn" class="ai-advisor-btn" style="background:linear-gradient(135deg,#2a7a4f,#155c36);">🏆 도전과제</button>
-   <button type="button" id="prestigeBtn" class="ai-advisor-btn" style="background:linear-gradient(135deg,#7c3aed,#4338ca);margin-top:8px;">🔄 환생</button>`);
+   <button type="button" id="prestigeBtn" class="ai-advisor-btn" style="background:linear-gradient(135deg,#7c3aed,#4338ca);margin-top:8px;">🔄 환생</button>
+   <button type="button" id="privacyPolicyBtn" class="ai-advisor-btn" style="background:linear-gradient(135deg,#475569,#1e293b);margin-top:8px;">📄 개인정보처리방침</button>`);
  const permBtn=document.getElementById("notifPermBtn");
  if(permBtn)permBtn.addEventListener("click",requestNotifPermission);
  document.getElementById("achievementsBtn").addEventListener("click",openAchievements);
  document.getElementById("prestigeBtn").addEventListener("click",openPrestigePanel);
+ document.getElementById("privacyPolicyBtn").addEventListener("click",()=>window.open("./privacy.html","_blank","noopener"));
 }
 async function requestNotifPermission(){
  if(typeof Notification==="undefined"){toast("이 브라우저는 알림을 지원하지 않습니다.");return}
@@ -1510,7 +1512,7 @@ ui("questCollapse").addEventListener("click",()=>ui("questPanel").classList.togg
 ui("startBtn").addEventListener("click",async()=>{state.character=selected;started=true;ui("characterSelect").classList.remove("show");await KOMSCO.Orientation.lockLandscape();save();if(!state.tutorialDone)showTutorial();else{checkDailyAttendance();toast(`${CHARS[selected].name}과 함께 시작합니다.`)}});
 function showTutorial(){
  const steps=[
-   {title:"👋 환영합니다!",body:"KOMSCO 네온팜 시티에 오신 것을 환영합니다. 몇 가지만 빠르게 안내해드릴게요."},
+   {title:"👋 환영합니다!",body:"조팸스가든에 오신 것을 환영합니다. 몇 가지만 빠르게 안내해드릴게요."},
    {title:"🕹️ 이동하기",body:"화면을 터치(PC는 마우스 클릭)한 채로 드래그하면 그 방향으로 이동하고, 키보드 방향키/WASD로도 이동할 수 있어요. 왼쪽 아래 AUTO 버튼을 누르면 가까운 건물까지 자동으로 이동합니다."},
    {title:"🏢 상호작용", body:"건물이나 시설 근처에 가면 오른쪽 아래 '상호작용' 버튼이 활성화됩니다. 눌러서 업무를 수행하거나 씨앗을 심어보세요."},
    {title:"🌱 씨앗상점 & 주말농장", body:"씨앗상점에서 씨앗을 구매하고, 주말농장의 빈 밭에 심어 키운 뒤 다 자라면 수확해 골드를 얻으세요."},
@@ -2099,7 +2101,7 @@ function escapeHtml(s){const d=document.createElement("div");d.textContent=s;ret
 
 /* ===================== 게임 공유하기 (2D 버전 getSharePayload 참고) ===================== */
 function getSharePayload(){
- return{url:location.href,text:"KOMSCO 네온팜 시티에서 함께 도시를 키워요!",title:"KOMSCO 네온팜 시티"};
+ return{url:location.href,text:"조팸스가든에서 함께 도시를 키워요!",title:"조팸스가든"};
 }
 // navigator.share()는 기기의 실제 물리적 화면 방향으로 OS 공유창을 띄우는데, 이 게임은
 // 세로로 쥔 폰을 CSS로 가로처럼 보이게 하는 방식이라 OS 공유창은 우리 CSS 회전과 무관하게
@@ -2122,7 +2124,7 @@ async function shareGame(){
    {icon:"🐦",label:"X(트위터)",href:`https://twitter.com/intent/tweet?text=${enc(payload.text)}&url=${enc(payload.url)}`},
    {icon:"🟢",label:"라인",href:`https://social-plugins.line.me/lineit/share?url=${enc(payload.url)}&text=${enc(payload.text)}`}
  ];
- let html=`<h2>📤 게임 친구 공유하기</h2><p>친구에게 KOMSCO 네온팜 시티 링크를 공유해보세요.${state.shareRewardClaimed?"":" (첫 공유 시 보너스 골드 지급!)"}</p><div class="share-grid">`;
+ let html=`<h2>📤 게임 친구 공유하기</h2><p>친구에게 조팸스가든 링크를 공유해보세요.${state.shareRewardClaimed?"":" (첫 공유 시 보너스 골드 지급!)"}</p><div class="share-grid">`;
  channels.forEach((c,i)=>{
    if(c.kind==="native")html+=`<button type="button" class="share-chip" id="shareKakaoBtn">${c.icon} ${c.label}</button>`;
    else html+=`<a class="share-chip" href="${c.href}" target="_blank" rel="noopener" data-share-channel="1">${c.icon} ${c.label}</a>`;
