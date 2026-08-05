@@ -85,3 +85,15 @@ CREATE TABLE IF NOT EXISTS ai_missions(
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_ai_missions_node ON ai_missions(node);
+
+-- 안드로이드 앱(FCM)이 발급받은 푸시 토큰 저장소. 토큰 자체를 기본키로 써서, 같은 기기에서
+-- 다른 계정으로 로그인하면 소유자(user_id)만 갱신되도록 한다 (기기당 여러 행이 쌓이지 않음).
+-- 한 계정이 여러 기기(폰 교체 등)를 갖는 것은 자연스럽게 허용됨 -- user_id는 UNIQUE가 아님.
+CREATE TABLE IF NOT EXISTS push_tokens(
+  token TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  platform TEXT NOT NULL DEFAULT 'android',
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(user_id) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens(user_id);

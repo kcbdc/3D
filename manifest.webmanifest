@@ -1,6 +1,6 @@
 {
-  "name": "KOMSCO Neon Farm City",
-  "short_name": "KOMSCO Farm",
+  "name": "조팸스가든",
+  "short_name": "조팸스가든",
   "start_url": "./?v=black-screen-perf-v5",
   "display": "fullscreen",
   "orientation": "landscape",

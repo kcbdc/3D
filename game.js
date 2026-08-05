@@ -1771,7 +1771,7 @@ function claimMail(id){
 const ACCOUNT_KEY="komscoAccountV1";
 let heartbeatTimer=null;
 function getAccount(){try{return JSON.parse(localStorage.getItem(ACCOUNT_KEY))}catch{return null}}
-function setAccount(acc){try{localStorage.setItem(ACCOUNT_KEY,JSON.stringify(acc))}catch{}}
+function setAccount(acc){try{localStorage.setItem(ACCOUNT_KEY,JSON.stringify(acc))}catch{}if(pendingFcmToken)registerPushToken(pendingFcmToken)}
 function clearAccount(){try{localStorage.removeItem(ACCOUNT_KEY)}catch{}}
 
 async function doLogin(email,nickname){
@@ -2099,6 +2099,27 @@ async function renderDmThread(myId,otherId){
 }
 function escapeHtml(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML.replace(/"/g,"&quot;").replace(/'/g,"&#39;")}
 
+/* ===================== 네이티브(안드로이드) 브릿지 연동 ===================== */
+// 안드로이드 WebView 래퍼 앱은 페이지 로드 시 window.AndroidBridge를 주입합니다. 이 객체가
+// 있으면 지금 일반 모바일 브라우저가 아니라 네이티브 앱 안에서 실행 중이라는 뜻입니다.
+const isNativeApp=typeof window.AndroidBridge!=="undefined";
+let pendingFcmToken=null;
+// 안드로이드 앱이 FCM 등록 토큰을 새로 발급받거나 갱신하면 이 함수를 호출해 웹 쪽에 알려줍니다
+// (네이티브 → 웹 방향 훅). 로그인 전에 먼저 호출될 수 있으므로, 그 경우 setAccount()가
+// 호출되는 시점(로그인 완료)에 자동으로 재시도합니다.
+window.__onNativeFcmToken=function(token){
+ if(!token)return;
+ pendingFcmToken=token;
+ registerPushToken(token);
+};
+async function registerPushToken(token){
+ const acc=getAccount();
+ if(!acc||!acc.id)return; // 아직 로그인 전 -- setAccount()에서 다시 시도됨
+ try{
+   await fetch("./api/push/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({userId:acc.id,token,platform:"android"})});
+   pendingFcmToken=null;
+ }catch{} // 네트워크 실패는 조용히 무시 -- 다음 토큰 갱신이나 다음 로그인 때 다시 시도됨
+}
 /* ===================== 게임 공유하기 (2D 버전 getSharePayload 참고) ===================== */
 function getSharePayload(){
  return{url:location.href,text:"조팸스가든에서 함께 도시를 키워요!",title:"조팸스가든"};
@@ -2110,11 +2131,20 @@ function getSharePayload(){
 // 카카오톡 공유는 Kakao JS SDK + 앱 키 등록이 필요한데 이 프로젝트엔 연동되어 있지 않아
 // (가짜로 흉내내면 조용히 실패하거나 404가 나므로) 목록에서 제외했습니다.
 async function shareGame(){
+ const payload=getSharePayload();
+ // 안드로이드 앱 안에서 실행 중이면 OS 공유시트(문자/카카오톡/이메일 등 설치된 모든 앱이
+ // 자동으로 뜨는 진짜 네이티브 공유창)를 직접 띄웁니다. 이 경로에서는 앱의 화면 방향이
+ // 실제로 sensorLandscape로 고정되어 있어(AndroidManifest), 아래 웹 버전 주석에서 설명하는
+ // "OS 공유창만 세로로 보이는" 문제 자체가 발생하지 않습니다.
+ if(isNativeApp&&window.AndroidBridge&&typeof window.AndroidBridge.shareText==="function"){
+   window.AndroidBridge.shareText(`${payload.title}\n${payload.text}\n${payload.url}`,payload.url);
+   claimShareRewardOnce();
+   return;
+ }
  // 공유 버튼을 누르는 시점에 다시 한 번 전체화면+가로 고정을 시도해서, 이메일/카카오톡 같은
  // 외부 앱이 열리기 직전에 기기가 실제로 가로 상태일 가능성을 최대한 높임. (외부 네이티브 앱
  // 자체의 화면 방향까지 우리 페이지에서 강제할 수는 없다는 한계는 있음)
  try{await KOMSCO.Orientation.lockLandscape()}catch{}
- const payload=getSharePayload();
  const msg=`${payload.title}\n${payload.text}\n${payload.url}`;
  const enc=encodeURIComponent;
  const channels=[
